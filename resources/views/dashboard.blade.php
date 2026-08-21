@@ -15,9 +15,9 @@
 
 @section('page_actions')
 
-    <button
-        type="button"
-        @click="$dispatch('open-import-modal')"
+    <a
+        href="{{ route('imports.index') }}"
+
         class="inline-flex items-center gap-2
                rounded-xl bg-blue-600
                px-4 py-2.5
@@ -34,6 +34,7 @@
             stroke="currentColor"
             stroke-width="1.8"
         >
+
             <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -48,7 +49,9 @@
                     v-5
                 "
             />
+
         </svg>
+
 
         <span class="hidden sm:inline">
             Import CSV
@@ -58,7 +61,7 @@
             Import
         </span>
 
-    </button>
+    </a>
 
 @endsection
 
@@ -68,7 +71,7 @@
 <div
     x-data="{
         statusModal: false,
-        importModal: false,
+        {{-- importModal: false, --}}
         selectedStatus: null,
 
         openStatus(label, count, percentage) {
@@ -82,9 +85,9 @@
         }
     }"
 
-    @open-import-modal.window="
-        importModal = true
-    "
+    @keydown.escape.window="
+    statusModal = false
+"
 
     @keydown.escape.window="
         statusModal = false;
@@ -748,113 +751,7 @@
     </div>
 
 
-    {{-- ========================================================= --}}
-    {{-- IMPORT PLACEHOLDER MODAL --}}
-    {{-- ========================================================= --}}
 
-    <div
-        x-cloak
-        x-show="importModal"
-        x-transition.opacity
-
-        class="fixed inset-0 z-[70]
-               flex items-center
-               justify-center p-4"
-    >
-
-        <div
-            class="absolute inset-0
-                   bg-slate-950/50
-                   backdrop-blur-sm"
-
-            @click="importModal = false"
-        ></div>
-
-
-        <div
-            x-show="importModal"
-            x-transition
-
-            class="relative w-full
-                   max-w-md rounded-2xl
-                   bg-white p-6
-                   shadow-2xl"
-        >
-
-            <div
-                class="flex h-12 w-12
-                       items-center
-                       justify-center
-                       rounded-xl bg-blue-100
-                       text-blue-600"
-            >
-
-                <svg
-                    class="h-6 w-6"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="
-                            M12 16V4
-                            m0 0-4 4
-                            m4-4 4 4
-                            M5 13v5
-                            a2 2 0 0 0 2 2
-                            h10
-                            a2 2 0 0 0 2-2
-                            v-5
-                        "
-                    />
-                </svg>
-
-            </div>
-
-
-            <h3
-                class="mt-5 text-xl
-                       font-bold text-slate-950"
-            >
-                CSV Import
-            </h3>
-
-            <p
-                class="mt-2 text-sm
-                       leading-6 text-slate-500"
-            >
-                CSV upload, validation, and data
-                preview will be implemented during
-                Phase 3.
-            </p>
-
-
-            <div
-                class="mt-6 flex justify-end"
-            >
-
-                <button
-                    type="button"
-
-                    @click="
-                        importModal = false
-                    "
-
-                    class="rounded-xl bg-blue-600
-                           px-5 py-2.5
-                           text-sm font-semibold
-                           text-white transition
-                           hover:bg-blue-700"
-                >
-                    Close
-                </button>
-
-            </div>
-
-        </div>
 
     </div>
 
