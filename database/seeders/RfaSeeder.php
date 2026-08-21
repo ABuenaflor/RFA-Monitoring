@@ -21,21 +21,17 @@ class RfaSeeder extends Seeder
         */
 
         for ($i = 1; $i <= 12; $i++) {
-
             $dateFiled = Carbon::create(
                 2026,
                 8,
                 1
-            )->addDays(
-                ($i - 1) % 12
-            );
+            )->addDays(($i - 1) % 12);
 
             Rfa::create([
-                'reference_no' =>
-                    sprintf(
-                        'RFA-2026-%05d',
-                        $counter++
-                    ),
+                'reference_no' => sprintf(
+                    'RFA-2026-%05d',
+                    $counter++
+                ),
 
                 'requesting_party' =>
                     "Requesting Party {$i}",
@@ -59,7 +55,6 @@ class RfaSeeder extends Seeder
             ]);
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | 8 Ongoing RFAs
@@ -67,25 +62,21 @@ class RfaSeeder extends Seeder
         */
 
         for ($i = 1; $i <= 8; $i++) {
+            $dateFiled = Carbon::create(
+                2026,
+                8,
+                1
+            )->addDays($i);
 
-            $dateFiled =
-                Carbon::create(
-                    2026,
-                    8,
-                    1
-                )->addDays($i);
-
-            $dateAssigned =
-                $dateFiled
-                    ->copy()
-                    ->addDay();
+            $dateAssigned = $dateFiled
+                ->copy()
+                ->addDay();
 
             Rfa::create([
-                'reference_no' =>
-                    sprintf(
-                        'RFA-2026-%05d',
-                        $counter++
-                    ),
+                'reference_no' => sprintf(
+                    'RFA-2026-%05d',
+                    $counter++
+                ),
 
                 'requesting_party' =>
                     "Requesting Party {$counter}",
@@ -117,7 +108,6 @@ class RfaSeeder extends Seeder
             ]);
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | 10 Disposed RFAs
@@ -132,30 +122,25 @@ class RfaSeeder extends Seeder
         ];
 
         for ($i = 1; $i <= 10; $i++) {
+            $dateFiled = Carbon::create(
+                2026,
+                7,
+                10
+            )->addDays($i);
 
-            $dateFiled =
-                Carbon::create(
-                    2026,
-                    7,
-                    10
-                )->addDays($i);
+            $dateAssigned = $dateFiled
+                ->copy()
+                ->addDay();
 
-            $dateAssigned =
-                $dateFiled
-                    ->copy()
-                    ->addDay();
-
-            $dateInterview =
-                $dateAssigned
-                    ->copy()
-                    ->addDays(2);
+            $dateInterview = $dateAssigned
+                ->copy()
+                ->addDays(2);
 
             Rfa::create([
-                'reference_no' =>
-                    sprintf(
-                        'RFA-2026-%05d',
-                        $counter++
-                    ),
+                'reference_no' => sprintf(
+                    'RFA-2026-%05d',
+                    $counter++
+                ),
 
                 'requesting_party' =>
                     "Requesting Party {$counter}",
@@ -204,8 +189,7 @@ class RfaSeeder extends Seeder
                 'disposition_status' =>
                     $dispositions[
                         ($i - 1)
-                        %
-                        count($dispositions)
+                        % count($dispositions)
                     ],
             ]);
         }
