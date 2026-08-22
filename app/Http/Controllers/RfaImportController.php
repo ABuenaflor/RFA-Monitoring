@@ -14,9 +14,6 @@ use Throwable;
 
 class RfaImportController extends Controller
 {
-    /**
-     * Display the CSV import page and optional imported batch preview.
-     */
     public function index(Request $request): View
     {
         $batch = $request->query('batch');
@@ -81,9 +78,6 @@ class RfaImportController extends Controller
         ]);
     }
 
-    /**
-     * Import a CSV into the RFA table.
-     */
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
@@ -130,12 +124,13 @@ class RfaImportController extends Controller
 
             throw ValidationException::withMessages([
                 'csv_file' =>
-                    'The CSV file does not contain a header row.',
+                    'The CSV does not contain a header row.',
             ]);
         }
 
         $headers = array_map(
-            fn ($header) => $this->cleanHeader($header),
+            fn ($header) =>
+                $this->cleanHeader($header),
             $headerRow
         );
 
@@ -144,12 +139,6 @@ class RfaImportController extends Controller
                 $this->normalizeHeader($header),
             $headers
         );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Prevent duplicate CSV column names
-        |--------------------------------------------------------------------------
-        */
 
         if (
             count($normalizedHeaders) !==
@@ -165,21 +154,13 @@ class RfaImportController extends Controller
 
         $batchUuid = (string) Str::uuid();
 
-        $batchShort = strtoupper(
-            substr(
-                str_replace(
-                    '-',
-                    '',
-                    $batchUuid
-                ),
-                0,
-                8
-            )
-        );
-
+        $processed = 0;
         $imported = 0;
         $created = 0;
         $updated = 0;
+        $duplicatesSkipped = 0;
+
+        $seenSourceKeys = [];
 
         DB::beginTransaction();
 
@@ -192,11 +173,7 @@ class RfaImportController extends Controller
                     continue;
                 }
 
-                /*
-                |--------------------------------------------------------------------------
-                | Make row length match header length
-                |--------------------------------------------------------------------------
-                */
+                $processed++;
 
                 $csvRow = array_pad(
                     $csvRow,
@@ -212,7 +189,7 @@ class RfaImportController extends Controller
 
                 /*
                 |--------------------------------------------------------------------------
-                | Preserve original CSV data
+                | Preserve original CSV values
                 |--------------------------------------------------------------------------
                 */
 
@@ -227,7 +204,7 @@ class RfaImportController extends Controller
 
                 /*
                 |--------------------------------------------------------------------------
-                | Create normalized representation
+                | Normalized representation
                 |--------------------------------------------------------------------------
                 */
 
@@ -245,32 +222,74 @@ class RfaImportController extends Controller
                         );
                 }
 
-                $sequence = $imported + 1;
-
                 $mapped = $this->mapRow(
                     $normalizedRow,
                     $payload,
-                    $batchUuid,
-                    $batchShort,
-                    $sequence
+                    $batchUuid
                 );
 
-                $referenceNo =
-                    $mapped['reference_no'];
+                $sourceKey =
+                    $mapped['source_row_key'];
 
-                unset(
-                    $mapped['reference_no']
-                );
+                /*
+                |--------------------------------------------------------------------------
+                | Skip exact duplicate source records in same file
+                |--------------------------------------------------------------------------
+                */
 
-                $rfa = Rfa::updateOrCreate(
-                    [
-                        'reference_no' =>
-                            $referenceNo,
-                    ],
-                    $mapped
-                );
+                if (
+                    isset(
+                        $seenSourceKeys[$sourceKey]
+                    )
+                ) {
+                    $duplicatesSkipped++;
 
-                if ($rfa->wasRecentlyCreated) {
+                    continue;
+                }
+
+                $seenSourceKeys[$sourceKey] = true;
+
+                /*
+                |--------------------------------------------------------------------------
+                | Update existing source record when re-imported
+                |--------------------------------------------------------------------------
+                */
+
+                $rfa = Rfa::query()
+                    ->where(
+                        'source_row_key',
+                        $sourceKey
+                    )
+                    ->first();
+
+                /*
+                |--------------------------------------------------------------------------
+                | Compatibility with earlier imports
+                |--------------------------------------------------------------------------
+                */
+
+                if (! $rfa) {
+                    $rfa = Rfa::query()
+                        ->where(
+                            'reference_no',
+                            $mapped['reference_no']
+                        )
+                        ->first();
+                }
+
+                $wasCreated = false;
+
+                if (! $rfa) {
+                    $rfa = new Rfa();
+
+                    $wasCreated = true;
+                }
+
+                $rfa->fill($mapped);
+
+                $rfa->save();
+
+                if ($wasCreated) {
                     $created++;
                 } else {
                     $updated++;
@@ -282,7 +301,7 @@ class RfaImportController extends Controller
             if ($imported === 0) {
                 throw ValidationException::withMessages([
                     'csv_file' =>
-                        'The CSV file contains no importable data rows.',
+                        'The CSV contains no importable records.',
                 ]);
             }
 
@@ -309,6 +328,20 @@ class RfaImportController extends Controller
 
         fclose($handle);
 
+        $message =
+            "{$processed} source rows processed. "
+            ."{$imported} unique records imported. "
+            ."{$created} created, "
+            ."{$updated} updated";
+
+        if ($duplicatesSkipped > 0) {
+            $message .=
+                ", {$duplicatesSkipped} duplicate "
+                ."row(s) skipped";
+        }
+
+        $message .= '.';
+
         return redirect()
             ->route(
                 'imports.index',
@@ -319,43 +352,39 @@ class RfaImportController extends Controller
             )
             ->with(
                 'success',
-                "{$imported} records processed. "
-                ."{$created} created and "
-                ."{$updated} updated."
+                $message
             );
     }
 
-    /**
-     * Convert one CSV row to system fields.
-     */
     private function mapRow(
         array $row,
         array $payload,
-        string $batchUuid,
-        string $batchShort,
-        int $sequence
+        string $batchUuid
     ): array {
-        $referenceNo = $this->firstValue(
-            $row,
-            [
-                'reference_no',
-                'reference_number',
-                'rfa_no',
-                'rfa_number',
-                'rfa_reference_no',
-                'rfa_reference_number',
-            ]
+        /*
+        |--------------------------------------------------------------------------
+        | Core parties / source identity
+        |--------------------------------------------------------------------------
+        */
+
+        $office = $this->nullableText(
+            $this->firstValue(
+                $row,
+                ['office']
+            )
         );
 
-        if (! $referenceNo) {
-            $referenceNo = sprintf(
-                'RFA-IMP-%s-%05d',
-                $batchShort,
-                $sequence
-            );
-        }
+        $docketNo = $this->nullableText(
+            $this->firstValue(
+                $row,
+                [
+                    'docket_no',
+                    'docket_number',
+                ]
+            )
+        );
 
-        $requestingParty =
+        $requestingParty = $this->nullableText(
             $this->firstValue(
                 $row,
                 [
@@ -364,80 +393,331 @@ class RfaImportController extends Controller
                     'complainant',
                     'complainant_name',
                 ]
-            );
+            )
+        );
 
-        $respondingParty =
+        $respondingParty = $this->nullableText(
             $this->firstValue(
                 $row,
                 [
                     'responding_party',
                     'responding_party_name',
-                    'employer',
-                    'employer_name',
                     'company',
                     'company_name',
+                    'employer',
+                    'employer_name',
                 ]
-            );
-
-        $rawStatus = $this->firstValue(
-            $row,
-            [
-                'status',
-                'rfa_status',
-                'current_status',
-            ]
+            )
         );
 
-        $status = $this->normalizeWorkflowStatus(
-            $rawStatus
+        /*
+        |--------------------------------------------------------------------------
+        | Dates
+        |--------------------------------------------------------------------------
+        */
+
+        $dateFiled = $this->normalizeDate(
+            $this->firstValue(
+                $row,
+                [
+                    'date_filed',
+                    'filing_date',
+                ]
+            )
         );
 
-        $disposition = $this->firstValue(
-            $row,
-            [
-                'disposition',
-                'disposition_status',
-                'final_disposition',
-            ]
+        $dateTaNores = $this->normalizeDate(
+            $this->firstValue(
+                $row,
+                [
+                    'date_ta_nores',
+                    'ta_nores_date',
+                ]
+            )
         );
 
-        $disposition =
-            $this->normalizeNullableToken(
-                $disposition
-            );
-
-        $dateDisposed =
+        $dateAssignedInterviewer =
             $this->normalizeDate(
                 $this->firstValue(
                     $row,
                     [
-                        'date_disposed',
-                        'disposed_date',
+                        'assigned_to_interviewer',
+                        'date_assigned_interviewer',
+                        'date_assigned_to_interviewer',
+                        'interviewer_assignment_date',
                     ]
                 )
             );
 
-        $explicitBucket =
+        /*
+        |--------------------------------------------------------------------------
+        | Date of Interview is deliberately separate.
+        |
+        | DO NOT map Initial Conference into this field.
+        |--------------------------------------------------------------------------
+        */
+
+        $dateInterview = $this->normalizeDate(
             $this->firstValue(
                 $row,
                 [
-                    'monitoring_bucket',
-                    'monitoring_status',
-                    'bucket',
+                    'date_interview',
+                    'date_of_interview',
+                    'interview_date',
+                ]
+            )
+        );
+
+        $dateValidated = $this->normalizeDate(
+            $this->firstValue(
+                $row,
+                [
+                    'date_validated',
+                    'validation_date',
+                ]
+            )
+        );
+
+        $dateTurnedOverLr = $this->normalizeDate(
+            $this->firstValue(
+                $row,
+                [
+                    'date_turned_over_lr',
+                    'date_turned_over_to_lr',
+                    'lr_turnover_date',
+                ]
+            )
+        );
+
+        $dateAssignedSeado =
+            $this->normalizeDate(
+                $this->firstValue(
+                    $row,
+                    [
+                        'assigned_to_seado',
+                        'date_assigned_seado',
+                        'date_assigned_to_seado',
+                        'seado_assignment_date',
+                    ]
+                )
+            );
+
+        $dateInitialConference =
+            $this->normalizeDate(
+                $this->firstValue(
+                    $row,
+                    [
+                        'initial_conference',
+                        'date_initial_conference',
+                    ]
+                )
+            );
+
+        $dateBothPartiesAppeared =
+            $this->normalizeDate(
+                $this->firstValue(
+                    $row,
+                    [
+                        'both_parties_appeared',
+                        'date_both_parties_appeared',
+                    ]
+                )
+            );
+
+        $dateDisposed = $this->normalizeDate(
+            $this->firstValue(
+                $row,
+                [
+                    'date_disposed',
+                    'disposed_date',
+                ]
+            )
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Source status
+        |--------------------------------------------------------------------------
+        */
+
+        $sourceCaseStatus =
+            $this->nullableText(
+                $this->firstValue(
+                    $row,
+                    [
+                        'case_status',
+                        'source_case_status',
+                    ]
+                )
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Workflow status
+        |--------------------------------------------------------------------------
+        */
+
+        $explicitSystemStatus =
+            $this->firstValue(
+                $row,
+                [
+                    'status',
+                    'rfa_status',
+                    'current_status',
                 ]
             );
 
+        if ($explicitSystemStatus) {
+            $status =
+                $this->normalizeWorkflowStatus(
+                    $explicitSystemStatus
+                );
+        } else {
+            $status =
+                $this->deriveWorkflowStatus(
+                    $sourceCaseStatus,
+                    $dateAssignedInterviewer,
+                    $dateInterview,
+                    $dateValidated,
+                    $dateTurnedOverLr,
+                    $dateAssignedSeado,
+                    $dateInitialConference,
+                    $dateDisposed
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Filing mode
+        |--------------------------------------------------------------------------
+        |
+        | CSV "Mode" is NOT used here.
+        |--------------------------------------------------------------------------
+        */
+
+        $modeOfFiling =
+            $this->deriveModeOfFiling(
+                $row,
+                $docketNo,
+                $sourceCaseStatus
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Monitoring bucket
+        |--------------------------------------------------------------------------
+        */
+
         $monitoringBucket =
             $this->determineMonitoringBucket(
-                $explicitBucket,
+                $this->firstValue(
+                    $row,
+                    [
+                        'monitoring_bucket',
+                        'monitoring_status',
+                        'bucket',
+                    ]
+                ),
+                $sourceCaseStatus,
                 $status,
-                $disposition,
+                $dateAssignedInterviewer,
+                $dateInterview,
+                $dateAssignedSeado,
+                $dateInitialConference,
                 $dateDisposed
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Stable source key
+        |--------------------------------------------------------------------------
+        |
+        | Docket alone cannot be used because the real CSV contains
+        | duplicate docket numbers belonging to different cases.
+        |--------------------------------------------------------------------------
+        */
+
+        $sourceRowKey =
+            $this->makeSourceRowKey(
+                $office,
+                $docketNo,
+                $dateFiled,
+                $requestingParty,
+                $respondingParty
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Internal system reference
+        |--------------------------------------------------------------------------
+        */
+
+        $referenceNo =
+            $this->firstValue(
+                $row,
+                [
+                    'reference_no',
+                    'reference_number',
+                    'rfa_no',
+                    'rfa_number',
+                ]
+            );
+
+        if (! $referenceNo) {
+            $referenceNo =
+                'RFA-SRC-'
+                .strtoupper(
+                    substr(
+                        $sourceRowKey,
+                        0,
+                        16
+                    )
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Final disposition
+        |--------------------------------------------------------------------------
+        |
+        | The real export has "Mode" codes but does not provide a
+        | clear Settled / Withdrawn / Referred mapping.
+        | Preserve the raw Mode separately.
+        |--------------------------------------------------------------------------
+        */
+
+        $dispositionStatus =
+            $this->normalizeNullableToken(
+                $this->firstValue(
+                    $row,
+                    [
+                        'disposition_status',
+                        'final_disposition',
+                        'disposition',
+                    ]
+                )
+            );
+
+        $dispositionMode =
+            $this->nullableText(
+                $this->firstValue(
+                    $row,
+                    [
+                        'mode',
+                        'disposition_mode',
+                    ]
+                )
             );
 
         return [
             'reference_no' =>
                 $referenceNo,
+
+            'office' =>
+                $office,
+
+            'docket_no' =>
+                $docketNo,
 
             'requesting_party' =>
                 $requestingParty,
@@ -445,99 +725,179 @@ class RfaImportController extends Controller
             'responding_party' =>
                 $respondingParty,
 
+            'company_address' =>
+                $this->nullableText(
+                    $this->firstValue(
+                        $row,
+                        ['company_address']
+                    )
+                ),
+
+            'contact_no' =>
+                $this->nullableText(
+                    $this->firstValue(
+                        $row,
+                        [
+                            'contact_no',
+                            'contact_number',
+                        ]
+                    )
+                ),
+
+            'total_employment' =>
+                $this->normalizeInteger(
+                    $this->firstValue(
+                        $row,
+                        ['total_employment']
+                    )
+                ),
+
+            'industry' =>
+                $this->nullableText(
+                    $this->firstValue(
+                        $row,
+                        ['industry']
+                    )
+                ),
+
+            'industry_code' =>
+                $this->nullableText(
+                    $this->firstValue(
+                        $row,
+                        ['industry_code']
+                    )
+                ),
+
+            'size_of_enterprise' =>
+                $this->nullableText(
+                    $this->firstValue(
+                        $row,
+                        ['size_of_enterprise']
+                    )
+                ),
+
             'status' =>
                 $status,
+
+            'source_case_status' =>
+                $sourceCaseStatus,
 
             'monitoring_bucket' =>
                 $monitoringBucket,
 
             'mode_of_filing' =>
-                $this->normalizeNullableToken(
-                    $this->firstValue(
-                        $row,
-                        [
-                            'mode_of_filing',
-                            'filing_mode',
-                            'mode_filed',
-                        ]
-                    )
-                ),
+                $modeOfFiling,
 
             'date_filed' =>
-                $this->normalizeDate(
-                    $this->firstValue(
-                        $row,
-                        [
-                            'date_filed',
-                            'filing_date',
-                        ]
-                    )
-                ),
+                $dateFiled,
+
+            'date_ta_nores' =>
+                $dateTaNores,
 
             'date_assigned_interviewer' =>
-                $this->normalizeDate(
-                    $this->firstValue(
-                        $row,
-                        [
-                            'date_assigned_interviewer',
-                            'interviewer_assignment_date',
-                            'date_assigned_to_interviewer',
-                        ]
-                    )
-                ),
+                $dateAssignedInterviewer,
 
             'date_interview' =>
-                $this->normalizeDate(
-                    $this->firstValue(
-                        $row,
-                        [
-                            'date_interview',
-                            'date_of_interview',
-                            'interview_date',
-                        ]
-                    )
-                ),
+                $dateInterview,
 
             'date_validated' =>
-                $this->normalizeDate(
-                    $this->firstValue(
-                        $row,
-                        [
-                            'date_validated',
-                            'validation_date',
-                        ]
-                    )
-                ),
+                $dateValidated,
 
             'date_turned_over_lr' =>
-                $this->normalizeDate(
+                $dateTurnedOverLr,
+
+            'date_assigned_seado' =>
+                $dateAssignedSeado,
+
+            'date_initial_conference' =>
+                $dateInitialConference,
+
+            'date_both_parties_appeared' =>
+                $dateBothPartiesAppeared,
+
+            'interviewer_name' =>
+                $this->nullableText(
                     $this->firstValue(
                         $row,
-                        [
-                            'date_turned_over_lr',
-                            'date_turned_over_to_lr',
-                            'lr_turnover_date',
-                        ]
+                        ['interviewer']
                     )
                 ),
 
-            'date_assigned_seado' =>
-                $this->normalizeDate(
+            'seado_name' =>
+                $this->nullableText(
                     $this->firstValue(
                         $row,
-                        [
-                            'date_assigned_seado',
-                            'seado_assignment_date',
-                            'date_assigned_to_seado',
-                        ]
+                        ['seado']
+                    )
+                ),
+
+            'workers_involved' =>
+                $this->normalizeInteger(
+                    $this->firstValue(
+                        $row,
+                        ['workers_involved']
+                    )
+                ),
+
+            'male_workers' =>
+                $this->normalizeInteger(
+                    $this->firstValue(
+                        $row,
+                        ['male']
+                    )
+                ),
+
+            'female_workers' =>
+                $this->normalizeInteger(
+                    $this->firstValue(
+                        $row,
+                        ['female']
+                    )
+                ),
+
+            'workers_benefited' =>
+                $this->normalizeInteger(
+                    $this->firstValue(
+                        $row,
+                        ['workers_benefited']
+                    )
+                ),
+
+            'filer_class' =>
+                $this->nullableText(
+                    $this->firstValue(
+                        $row,
+                        ['filer_class']
+                    )
+                ),
+
+            'issues' =>
+                $this->nullableText(
+                    $this->firstValue(
+                        $row,
+                        ['issues']
                     )
                 ),
 
             'disposition_status' =>
-                $disposition,
+                $dispositionStatus,
+
+            'disposition_mode' =>
+                $dispositionMode,
 
             'date_disposed' =>
                 $dateDisposed,
+
+            'monetary_benefit' =>
+                $this->normalizeMoney(
+                    $this->firstValue(
+                        $row,
+                        ['monetary_benefit']
+                    )
+                ),
+
+            'source_row_key' =>
+                $sourceRowKey,
 
             'import_batch_uuid' =>
                 $batchUuid,
@@ -547,19 +907,71 @@ class RfaImportController extends Controller
         ];
     }
 
-    /**
-     * Determine dashboard monitoring category.
-     */
+    private function deriveWorkflowStatus(
+        ?string $sourceStatus,
+        ?string $dateAssignedInterviewer,
+        ?string $dateInterview,
+        ?string $dateValidated,
+        ?string $dateTurnedOverLr,
+        ?string $dateAssignedSeado,
+        ?string $dateInitialConference,
+        ?string $dateDisposed
+    ): string {
+        $sourceToken =
+            $sourceStatus
+                ? $this->normalizeToken(
+                    $sourceStatus
+                )
+                : null;
+
+        if (
+            $sourceToken === 'disposed'
+            || $dateDisposed
+        ) {
+            return 'disposed';
+        }
+
+        if ($dateInitialConference) {
+            return 'for_conference';
+        }
+
+        if ($dateAssignedSeado) {
+            return 'assigned_to_seado';
+        }
+
+        if ($dateTurnedOverLr) {
+            return 'for_seado_assignment';
+        }
+
+        if ($dateValidated) {
+            return 'for_turnover';
+        }
+
+        if (
+            $dateInterview
+            || $dateAssignedInterviewer
+        ) {
+            return 'for_validation';
+        }
+
+        return 'for_interviewer_assignment';
+    }
+
     private function determineMonitoringBucket(
         ?string $explicitBucket,
-        string $status,
-        ?string $disposition,
+        ?string $sourceCaseStatus,
+        string $workflowStatus,
+        ?string $dateAssignedInterviewer,
+        ?string $dateInterview,
+        ?string $dateAssignedSeado,
+        ?string $dateInitialConference,
         ?string $dateDisposed
     ): string {
         if ($explicitBucket) {
-            $bucket = $this->normalizeToken(
-                $explicitBucket
-            );
+            $bucket =
+                $this->normalizeToken(
+                    $explicitBucket
+                );
 
             if (
                 in_array(
@@ -577,19 +989,37 @@ class RfaImportController extends Controller
         }
 
         if (
-            $status === 'disposed'
-            || $disposition
+            $workflowStatus === 'disposed'
             || $dateDisposed
         ) {
             return 'disposed';
         }
 
+        $sourceToken =
+            $sourceCaseStatus
+                ? $this->normalizeToken(
+                    $sourceCaseStatus
+                )
+                : null;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Actual export behavior
+        |--------------------------------------------------------------------------
+        |
+        | Every TA-OL / TA-OS / NORES row in this supplied CSV has no
+        | docket number. Keep these in the pre-processing/pending bucket
+        | until their exact business meaning is formally defined.
+        |--------------------------------------------------------------------------
+        */
+
         if (
             in_array(
-                $status,
+                $sourceToken,
                 [
-                    'newly_filed',
-                    'for_interviewer_assignment',
+                    'ta_ol',
+                    'ta_os',
+                    'nores',
                 ],
                 true
             )
@@ -597,72 +1027,137 @@ class RfaImportController extends Controller
             return 'pending';
         }
 
-        return 'ongoing';
+        if ($sourceToken === 'pending') {
+            return 'ongoing';
+        }
+
+        if (
+            $dateAssignedInterviewer
+            || $dateInterview
+            || $dateAssignedSeado
+            || $dateInitialConference
+        ) {
+            return 'ongoing';
+        }
+
+        return 'pending';
     }
 
-    /**
-     * Normalize workflow status.
-     */
+    private function deriveModeOfFiling(
+        array $row,
+        ?string $docketNo,
+        ?string $sourceCaseStatus
+    ): ?string {
+        $explicit =
+            $this->firstValue(
+                $row,
+                [
+                    'mode_of_filing',
+                    'filing_mode',
+                ]
+            );
+
+        if ($explicit) {
+            return $this->normalizeToken(
+                $explicit
+            );
+        }
+
+        if ($docketNo) {
+            if (
+                preg_match(
+                    '/-OL$/i',
+                    $docketNo
+                )
+            ) {
+                return 'online';
+            }
+
+            if (
+                preg_match(
+                    '/-OS$/i',
+                    $docketNo
+                )
+            ) {
+                return 'onsite';
+            }
+        }
+
+        if ($sourceCaseStatus) {
+            $status =
+                $this->normalizeToken(
+                    $sourceCaseStatus
+                );
+
+            if ($status === 'ta_ol') {
+                return 'online';
+            }
+
+            if ($status === 'ta_os') {
+                return 'onsite';
+            }
+        }
+
+        return null;
+    }
+
+    private function makeSourceRowKey(
+        ?string $office,
+        ?string $docketNo,
+        ?string $dateFiled,
+        ?string $requestingParty,
+        ?string $respondingParty
+    ): string {
+        $identity = [
+            $this->identityToken($office),
+            $this->identityToken($docketNo),
+            $dateFiled ?? '',
+            $this->identityToken(
+                $requestingParty
+            ),
+            $this->identityToken(
+                $respondingParty
+            ),
+        ];
+
+        return hash(
+            'sha256',
+            implode('|', $identity)
+        );
+    }
+
+    private function identityToken(
+        ?string $value
+    ): string {
+        if (! $value) {
+            return '';
+        }
+
+        $value = mb_strtolower(
+            trim($value)
+        );
+
+        $value = preg_replace(
+            '/\s+/u',
+            ' ',
+            $value
+        );
+
+        return $value;
+    }
+
     private function normalizeWorkflowStatus(
         ?string $value
     ): string {
         if (! $value) {
-            return 'newly_filed';
+            return 'for_interviewer_assignment';
         }
 
-        $status = $this->normalizeToken(
+        return $this->normalizeToken(
             $value
         );
-
-        return match ($status) {
-            'pending' =>
-                'for_interviewer_assignment',
-
-            'new',
-            'newly_filed' =>
-                'newly_filed',
-
-            'for_interviewer_assignment' =>
-                'for_interviewer_assignment',
-
-            'for_validation' =>
-                'for_validation',
-
-            'validated' =>
-                'validated',
-
-            'for_turnover' =>
-                'for_turnover',
-
-            'for_seado_assignment' =>
-                'for_seado_assignment',
-
-            'assigned_to_seado' =>
-                'assigned_to_seado',
-
-            'for_notice_preparation' =>
-                'for_notice_preparation',
-
-            'for_conference' =>
-                'for_conference',
-
-            'ongoing' =>
-                'ongoing',
-
-            'for_disposition' =>
-                'for_disposition',
-
-            'disposed' =>
-                'disposed',
-
-            default =>
-                $status,
-        };
     }
 
-    /**
-     * Return the first populated value from alias fields.
-     */
     private function firstValue(
         array $row,
         array $aliases
@@ -681,20 +1176,6 @@ class RfaImportController extends Controller
         return null;
     }
 
-    /**
-     * Normalize CSV column name.
-     */
-    private function normalizeHeader(
-        ?string $header
-    ): string {
-        return $this->normalizeToken(
-            $this->cleanHeader($header)
-        );
-    }
-
-    /**
-     * Remove BOM and surrounding whitespace.
-     */
     private function cleanHeader(
         ?string $header
     ): string {
@@ -709,9 +1190,14 @@ class RfaImportController extends Controller
         return trim($header);
     }
 
-    /**
-     * Convert text into snake_case-like token.
-     */
+    private function normalizeHeader(
+        ?string $header
+    ): string {
+        return $this->normalizeToken(
+            $this->cleanHeader($header)
+        );
+    }
+
     private function normalizeToken(
         string $value
     ): string {
@@ -740,6 +1226,9 @@ class RfaImportController extends Controller
     private function normalizeNullableToken(
         ?string $value
     ): ?string {
+        $value =
+            $this->nullableText($value);
+
         if (! $value) {
             return null;
         }
@@ -749,17 +1238,120 @@ class RfaImportController extends Controller
         );
     }
 
-    /**
-     * Parse common CSV date formats.
-     */
-    private function normalizeDate(
+    private function nullableText(
         ?string $value
     ): ?string {
-        if (! $value) {
+        if ($value === null) {
             return null;
         }
 
         $value = trim($value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (
+            in_array(
+                strtolower($value),
+                [
+                    '-',
+                    'na',
+                    'n/a',
+                ],
+                true
+            )
+        ) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    private function normalizeInteger(
+        ?string $value
+    ): ?int {
+        $value =
+            $this->nullableText($value);
+
+        if ($value === null) {
+            return null;
+        }
+
+        $value = str_replace(
+            [
+                ',',
+                ' ',
+            ],
+            '',
+            $value
+        );
+
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        return max(
+            0,
+            (int) $value
+        );
+    }
+
+    private function normalizeMoney(
+        ?string $value
+    ): ?string {
+        $value =
+            $this->nullableText($value);
+
+        if ($value === null) {
+            return null;
+        }
+
+        $value = preg_replace(
+            '/[^\d.\-]/u',
+            '',
+            $value
+        );
+
+        if (
+            $value === ''
+            || ! is_numeric($value)
+        ) {
+            return null;
+        }
+
+        return number_format(
+            (float) $value,
+            2,
+            '.',
+            ''
+        );
+    }
+
+    private function normalizeDate(
+        ?string $value
+    ): ?string {
+        $value =
+            $this->nullableText($value);
+
+        if (! $value) {
+            return null;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Invalid legacy zero-date sentinels
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            preg_match(
+                '/^0000-00-00/',
+                $value
+            )
+        ) {
+            return null;
+        }
 
         $formats = [
             'Y-m-d',
@@ -770,6 +1362,7 @@ class RfaImportController extends Controller
             'm-d-y',
             'M j, Y',
             'F j, Y',
+            'Y-m-d H:i:s',
         ];
 
         foreach ($formats as $format) {
@@ -779,7 +1372,7 @@ class RfaImportController extends Controller
                     $value
                 )->toDateString();
             } catch (Throwable) {
-                // Try next date format.
+                //
             }
         }
 
@@ -792,17 +1385,12 @@ class RfaImportController extends Controller
         }
     }
 
-    /**
-     * Determine whether a CSV row contains no values.
-     */
     private function isEmptyRow(
         array $row
     ): bool {
         foreach ($row as $value) {
             if (
-                trim(
-                    (string) $value
-                ) !== ''
+                trim((string) $value) !== ''
             ) {
                 return false;
             }

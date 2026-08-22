@@ -28,6 +28,7 @@ class RfaController extends Controller
             'status',
             'monitoring_bucket',
             'updated_at',
+            'docket_no',
         ];
 
         $sort = $request->string('sort')->toString();
@@ -84,21 +85,36 @@ class RfaController extends Controller
             $query->where(
                 function (Builder $query) use ($search) {
                     $query
-                        ->where(
-                            'reference_no',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'requesting_party',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'responding_party',
-                            'like',
-                            "%{$search}%"
-                        );
+    ->where(
+        'reference_no',
+        'like',
+        "%{$search}%"
+    )
+    ->orWhere(
+        'docket_no',
+        'like',
+        "%{$search}%"
+    )
+    ->orWhere(
+        'requesting_party',
+        'like',
+        "%{$search}%"
+    )
+    ->orWhere(
+        'responding_party',
+        'like',
+        "%{$search}%"
+    )
+    ->orWhere(
+        'interviewer_name',
+        'like',
+        "%{$search}%"
+    )
+    ->orWhere(
+        'seado_name',
+        'like',
+        "%{$search}%"
+    );
                 }
             );
         }

@@ -4,6 +4,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\RfaImportController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\RfaController;
+use App\Http\Controllers\PctProcessController;
+use App\Http\Controllers\ReportController;
 
 Route::redirect('/', '/dashboard');
 
@@ -48,19 +50,20 @@ Route::get(
     [RfaController::class, 'index']
 )->name('listing');
 
-Route::view('/reports', 'placeholder', [
-    'pageTitle' => 'Reports',
-    'pageDescription' =>
-        'Generate RFA monitoring, disposition, processing, and management reports.',
-    'phase' => 'Phase 6',
-])->name('reports');
+Route::get(
+    '/reports',
+    [ReportController::class, 'index']
+)->name('reports');
 
-Route::view('/pct-process', 'placeholder', [
-    'pageTitle' => 'PCT Process',
-    'pageDescription' =>
-        'Monitor RFA prescribed processing time and identify nearing, on PCT, and beyond PCT cases.',
-    'phase' => 'Phase 5',
-])->name('pct-process');
+Route::get(
+    '/reports/export',
+    [ReportController::class, 'exportCsv']
+)->name('reports.export');
+
+Route::get(
+    '/pct-process',
+    [PctProcessController::class, 'index']
+)->name('pct-process');
 
 Route::view('/users', 'placeholder', [
     'pageTitle' => 'Users',
