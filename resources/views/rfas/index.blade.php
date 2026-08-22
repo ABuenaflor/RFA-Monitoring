@@ -402,7 +402,7 @@
                                 id="search"
                                 name="search"
                                 value="{{ request('search') }}"
-                                placeholder="Reference no., requesting party, responding party..."
+                                placeholder="Docket no., reference no., complainant, company..."
 
                                 class="w-full
                                        rounded-xl
@@ -1034,62 +1034,39 @@
                             >
 
                                 @php
-                                    $referenceDirection =
-                                        $sort === 'reference_no'
-                                        && $direction === 'asc'
-                                            ? 'desc'
-                                            : 'asc';
-                                @endphp
+    $docketDirection =
+        $sort === 'docket_no'
+        && $direction === 'asc'
+            ? 'desc'
+            : 'asc';
+@endphp
 
-                                <a
-                                    href="{{
-                                        route(
-                                            'listing',
-                                            array_merge(
-                                                request()->query(),
-                                                [
-                                                    'sort' =>
-                                                        'reference_no',
+<a
+    href="{{
+        route(
+            'listing',
+            array_merge(
+                request()->query(),
+                [
+                    'sort' => 'docket_no',
+                    'direction' => $docketDirection,
+                ]
+            )
+        )
+    }}"
+    class="inline-flex items-center gap-1.5
+           text-xs font-bold uppercase
+           tracking-wider text-slate-500
+           transition hover:text-blue-600"
+>
+    Docket / Reference No.
 
-                                                    'direction' =>
-                                                        $referenceDirection,
-                                                ]
-                                            )
-                                        )
-                                    }}"
-
-                                    class="inline-flex
-                                           items-center
-                                           gap-1.5
-                                           text-xs font-bold
-                                           uppercase
-                                           tracking-wider
-                                           text-slate-500
-                                           transition
-                                           hover:text-blue-600"
-                                >
-                                    Reference No.
-
-                                    @if (
-                                        $sort ===
-                                        'reference_no'
-                                    )
-
-                                        <span
-                                            class="text-blue-600"
-                                        >
-                                            {{
-                                                $direction
-                                                === 'asc'
-                                                    ? '↑'
-                                                    : '↓'
-                                            }}
-                                        </span>
-
-                                    @endif
-
-                                </a>
-
+    @if ($sort === 'docket_no')
+        <span class="text-blue-600">
+            {{ $direction === 'asc' ? '↑' : '↓' }}
+        </span>
+    @endif
+</a>
                             </th>
 
 
@@ -1321,6 +1298,8 @@
                                        text-slate-500"
                             >
                                 Workflow Status
+
+
                             </th>
 
 
@@ -1415,20 +1394,46 @@
                                 {{-- REFERENCE --}}
 
                                 <td
-                                    class="whitespace-nowrap
-                                           px-5 py-4"
-                                >
+    class="whitespace-nowrap
+           px-5 py-4"
+>
 
-                                    <span
-                                        class="text-sm font-bold
-                                               text-slate-950"
-                                    >
-                                        {{
-                                            $rfa->reference_no
-                                        }}
-                                    </span>
+    @if ($rfa->docket_no)
 
-                                </td>
+        <div
+            class="text-sm font-bold
+                   text-slate-950"
+        >
+            {{ $rfa->docket_no }}
+        </div>
+
+        <div
+            class="mt-1 text-xs
+                   text-slate-400"
+        >
+            System:
+            {{ $rfa->reference_no }}
+        </div>
+
+    @else
+
+        <div
+            class="text-sm font-bold
+                   text-slate-950"
+        >
+            {{ $rfa->reference_no }}
+        </div>
+
+        <div
+            class="mt-1 text-xs
+                   text-amber-600"
+        >
+            No docket number
+        </div>
+
+    @endif
+
+</td>
 
 
                                 {{-- REQUESTING PARTY --}}
@@ -1508,30 +1513,46 @@
                                 </td>
 
 
-                                {{-- WORKFLOW STATUS --}}
+                               {{-- WORKFLOW STATUS --}}
 
-                                <td
-                                    class="px-5 py-4"
-                                >
+<td class="px-5 py-4">
 
-                                    <span
-                                        class="inline-flex
-                                               rounded-lg
-                                               bg-slate-100
-                                               px-2.5 py-1.5
-                                               text-xs font-semibold
-                                               text-slate-700"
-                                    >
-                                        {{
-                                            $rfa->status
-                                                ? \Illuminate\Support\Str::headline(
-                                                    $rfa->status
-                                                )
-                                                : '—'
-                                        }}
-                                    </span>
+    {{-- SYSTEM WORKFLOW STATUS --}}
 
-                                </td>
+    <span
+        class="inline-flex
+               rounded-lg
+               bg-slate-100
+               px-2.5 py-1.5
+               text-xs font-semibold
+               text-slate-700"
+    >
+        {{
+            $rfa->status
+                ? \Illuminate\Support\Str::headline(
+                    $rfa->status
+                )
+                : '—'
+        }}
+    </span>
+
+
+    {{-- ORIGINAL CSV CASE STATUS --}}
+
+    @if ($rfa->source_case_status)
+
+        <div
+            class="mt-1
+                   text-xs
+                   text-slate-400"
+        >
+            Source:
+            {{ $rfa->source_case_status }}
+        </div>
+
+    @endif
+
+</td>
 
 
                                 {{-- MONITORING --}}
@@ -1565,57 +1586,76 @@
                                 </td>
 
 
-                                {{-- DISPOSITION --}}
+                               {{-- DISPOSITION --}}
 
-                                <td
-                                    class="px-5 py-4"
-                                >
+<td
+    class="px-5 py-4"
+>
 
-                                    @if (
-                                        $rfa->disposition_status
-                                    )
+    @if (
+        $rfa->disposition_status
+    )
 
-                                        <div
-                                            class="text-sm
-                                                   font-semibold
-                                                   text-emerald-700"
-                                        >
-                                            {{
-                                                \Illuminate\Support\Str::headline(
-                                                    $rfa->disposition_status
-                                                )
-                                            }}
-                                        </div>
+        <div
+            class="text-sm
+                   font-semibold
+                   text-emerald-700"
+        >
+            {{
+                \Illuminate\Support\Str::headline(
+                    $rfa->disposition_status
+                )
+            }}
+        </div>
 
-                                        @if ($rfa->date_disposed)
 
-                                            <div
-                                                class="mt-1
-                                                       text-xs
-                                                       text-slate-400"
-                                            >
-                                                {{
-                                                    $rfa->date_disposed
-                                                        ->format(
-                                                            'M d, Y'
-                                                        )
-                                                }}
-                                            </div>
+        @if ($rfa->date_disposed)
 
-                                        @endif
+            <div
+                class="mt-1
+                       text-xs
+                       text-slate-400"
+            >
+                {{
+                    $rfa->date_disposed
+                        ->format(
+                            'M d, Y'
+                        )
+                }}
+            </div>
 
-                                    @else
+        @endif
 
-                                        <span
-                                            class="text-sm
-                                                   text-slate-400"
-                                        >
-                                            —
-                                        </span>
 
-                                    @endif
+    @else
 
-                                </td>
+        <span
+            class="text-sm
+                   text-slate-400"
+        >
+            —
+        </span>
+
+    @endif
+
+
+    {{-- SOURCE DISPOSITION MODE FROM CSV --}}
+
+    @if ($rfa->disposition_mode)
+
+        <div
+            class="mt-1
+                   text-xs
+                   font-semibold
+                   text-slate-500"
+        >
+            Mode:
+            {{ $rfa->disposition_mode }}
+        </div>
+
+    @endif
+
+</td>
 
                             </tr>
 
