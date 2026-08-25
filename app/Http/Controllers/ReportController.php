@@ -29,6 +29,8 @@ class ReportController extends Controller
             ->orderBy('id')
             ->get();
 
+
+
         /*
         |--------------------------------------------------------------------------
         | General report summary
@@ -176,6 +178,131 @@ class ReportController extends Controller
                     ? $processingDays->max()
                     : null,
         ];
+                /*
+        |--------------------------------------------------------------------------
+        | Selected SEADO workload summary
+        |--------------------------------------------------------------------------
+        |
+        | $allRfas already contains all active report filters:
+        |
+        | - Date range
+        | - Office
+        | - SEADO
+        | - Monitoring
+        | - Workflow status
+        | - Source status
+        | - Disposition mode
+        | - Search
+        |
+        */
+
+        $selectedSeado = trim(
+            (string) $request->query(
+                'seado_name',
+                ''
+            )
+        );
+
+        $seadoSummary = null;
+
+        if ($selectedSeado !== '') {
+            $totalHandled =
+                $allRfas->count();
+
+            $disposed =
+                $allRfas
+                    ->where(
+                        'monitoring_bucket',
+                        'disposed'
+                    )
+                    ->count();
+
+            $seadoSummary = [
+                'name' =>
+                    $selectedSeado,
+
+                'total' =>
+                    $totalHandled,
+
+                'pending' =>
+                    $allRfas
+                        ->where(
+                            'monitoring_bucket',
+                            'pending'
+                        )
+                        ->count(),
+
+                'ongoing' =>
+                    $allRfas
+                        ->where(
+                            'monitoring_bucket',
+                            'ongoing'
+                        )
+                        ->count(),
+
+                'disposed' =>
+                    $disposed,
+
+                'disposition_rate' =>
+                    $totalHandled > 0
+                        ? round(
+                            (
+                                $disposed
+                                /
+                                $totalHandled
+                            ) * 100,
+                            1
+                        )
+                        : 0,
+
+                'workers_involved' =>
+                    $allRfas->sum(
+                        fn (Rfa $rfa) =>
+                            (int) (
+                                $rfa->workers_involved
+                                ?? 0
+                            )
+                    ),
+
+                'workers_benefited' =>
+                    $allRfas->sum(
+                        fn (Rfa $rfa) =>
+                            (int) (
+                                $rfa->workers_benefited
+                                ?? 0
+                            )
+                    ),
+
+                'monetary_benefit' =>
+                    $allRfas->sum(
+                        fn (Rfa $rfa) =>
+                            (float) (
+                                $rfa->monetary_benefit
+                                ?? 0
+                            )
+                    ),
+
+                        'processing_count' =>
+                            $processingSummary[
+                                'count'
+                            ],
+
+                        'average_processing_days' =>
+                            $processingSummary[
+                                'average'
+                            ],
+
+                        'minimum_processing_days' =>
+                            $processingSummary[
+                                'minimum'
+                            ],
+
+                        'maximum_processing_days' =>
+                            $processingSummary[
+                                'maximum'
+                            ],
+                    ];
+                }
 
         /*
         |--------------------------------------------------------------------------
@@ -201,19 +328,83 @@ class ReportController extends Controller
             ->map->count()
             ->sortDesc();
 
-        $dispositionModeBreakdown = $allRfas
+      /*
+|--------------------------------------------------------------------------
+| Disposition reporting
+|--------------------------------------------------------------------------
+|
+| disposition_status:
+|     Official system final disposition.
+|
+| disposition_mode:
+|     Raw/source disposition mode imported from the CSV.
+|
+| These must remain separate until an authoritative source-mode mapping
+| is provided.
+|
+*/
+
+$disposedRfas = $allRfas
+    ->where(
+        'monitoring_bucket',
+        'disposed'
+    );
+
+
+$officialDispositionBreakdown =
+    $disposedRfas
+        ->filter(
+            fn (Rfa $rfa) =>
+                filled(
+                    $rfa->disposition_status
+                )
+        )
+        ->groupBy(
+            fn (Rfa $rfa) =>
+                $rfa->disposition_status
+        )
+        ->map->count()
+        ->sortDesc();
+
+
+$dispositionModeBreakdown =
+    $disposedRfas
+        ->filter(
+            fn (Rfa $rfa) =>
+                filled(
+                    $rfa->disposition_mode
+                )
+        )
+        ->groupBy(
+            fn (Rfa $rfa) =>
+                $rfa->disposition_mode
+        )
+        ->map->count()
+        ->sortDesc();
+
+
+$dispositionSummary = [
+    'total_disposed' =>
+        $disposedRfas->count(),
+
+    'official_recorded' =>
+        $officialDispositionBreakdown
+            ->sum(),
+
+    'official_missing' =>
+        $disposedRfas
             ->filter(
                 fn (Rfa $rfa) =>
-                    filled(
-                        $rfa->disposition_mode
+                    blank(
+                        $rfa->disposition_status
                     )
             )
-            ->groupBy(
-                fn (Rfa $rfa) =>
-                    $rfa->disposition_mode
-            )
-            ->map->count()
-            ->sortDesc();
+            ->count(),
+
+    'source_mode_recorded' =>
+        $dispositionModeBreakdown
+            ->sum(),
+];
 
         /*
         |--------------------------------------------------------------------------
@@ -258,6 +449,19 @@ class ReportController extends Controller
             ->orderBy('office')
             ->pluck('office');
 
+                    /*
+        |--------------------------------------------------------------------------
+        | SEADO filter options
+        |--------------------------------------------------------------------------
+        */
+
+        $seados = Rfa::query()
+            ->whereNotNull('seado_name')
+            ->where('seado_name', '!=', '')
+            ->distinct()
+            ->orderBy('seado_name')
+            ->pluck('seado_name');
+
         $workflowStatuses = Rfa::query()
             ->whereNotNull('status')
             ->where('status', '!=', '')
@@ -282,6 +486,23 @@ class ReportController extends Controller
                 'source_case_status'
             );
 
+            $dispositionStatuses = Rfa::query()
+                ->whereNotNull(
+                    'disposition_status'
+            )
+            ->where(
+                'disposition_status',
+                '!=',
+                ''
+            )
+            ->distinct()
+            ->orderBy(
+                'disposition_status'
+            )
+            ->pluck(
+                'disposition_status'
+            );
+
         $dispositionModes = Rfa::query()
             ->whereNotNull(
                 'disposition_mode'
@@ -300,6 +521,14 @@ class ReportController extends Controller
             );
 
         return view('reports.index', [
+            'seados' =>
+                $seados,
+
+            'selectedSeado' =>
+                $selectedSeado,
+
+            'seadoSummary' =>
+                $seadoSummary,
             'summary' =>
                 $summary,
 
@@ -320,6 +549,15 @@ class ReportController extends Controller
 
             'sourceStatusBreakdown' =>
                 $sourceStatusBreakdown,
+
+            'officialDispositionBreakdown' =>
+                $officialDispositionBreakdown,
+
+            'dispositionSummary' =>
+                $dispositionSummary,
+
+            'dispositionStatuses' =>
+                $dispositionStatuses,
 
             'dispositionModeBreakdown' =>
                 $dispositionModeBreakdown,
@@ -631,6 +869,24 @@ class ReportController extends Controller
                 )
             );
         }
+                /*
+        |--------------------------------------------------------------------------
+        | SEADO filter
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $request->filled(
+                'seado_name'
+            )
+        ) {
+            $query->where(
+                'seado_name',
+                $request->query(
+                    'seado_name'
+                )
+            );
+        }
 
         if (
             $request->filled(
@@ -671,6 +927,25 @@ class ReportController extends Controller
             );
         }
 
+                /*
+        |--------------------------------------------------------------------------
+        | Official final disposition
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $request->filled(
+                'disposition_status'
+            )
+        ) {
+            $query->where(
+                'disposition_status',
+                $request->query(
+                    'disposition_status'
+                )
+            );
+        }
+
         if (
             $request->filled(
                 'disposition_mode'
@@ -707,6 +982,9 @@ class ReportController extends Controller
             'office' =>
                 ['nullable', 'string', 'max:100'],
 
+                'seado_name' =>
+                ['nullable', 'string', 'max:150'],
+
             'monitoring_bucket' =>
                 [
                     'nullable',
@@ -718,6 +996,9 @@ class ReportController extends Controller
 
             'source_case_status' =>
                 ['nullable', 'string', 'max:100'],
+
+            'disposition_status' =>
+            ['nullable', 'string', 'max:100'],
 
             'disposition_mode' =>
                 ['nullable', 'string', 'max:100'],
