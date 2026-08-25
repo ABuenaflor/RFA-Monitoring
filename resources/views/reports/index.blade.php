@@ -309,7 +309,64 @@
                     </select>
 
                 </div>
+                {{-- SEADO --}}
 
+                <div>
+
+                    <label
+                        for="seado_name"
+                        class="mb-2 block
+                            text-sm font-semibold
+                            text-slate-700"
+                    >
+                        SEADO
+                    </label>
+
+
+                    <select
+                        id="seado_name"
+                        name="seado_name"
+
+                        class="w-full
+                            rounded-xl
+                            border border-slate-300
+                            bg-white
+                            px-4 py-3
+                            text-sm
+                            text-slate-700
+                            outline-none
+                            focus:border-blue-500
+                            focus:ring-4
+                            focus:ring-blue-100"
+                    >
+
+                        <option value="">
+                            All SEADOs
+                        </option>
+
+
+                        @foreach (
+                            $seados
+                            as $seado
+                        )
+
+                            <option
+                                value="{{ $seado }}"
+
+                                @selected(
+                                    request(
+                                        'seado_name'
+                                    ) === $seado
+                                )
+                            >
+                                {{ $seado }}
+                            </option>
+
+                        @endforeach
+
+                    </select>
+
+                </div>
 
                 {{-- MONITORING --}}
 
@@ -479,7 +536,65 @@
                 </div>
 
 
-                {{-- DISPOSITION MODE --}}
+                            {{-- OFFICIAL DISPOSITION --}}
+
+            <div>
+
+                <label
+                    for="disposition_status"
+                    class="mb-2 block
+                        text-sm font-semibold
+                        text-slate-700"
+                >
+                    Official Disposition
+                </label>
+
+
+                <select
+                    id="disposition_status"
+                    name="disposition_status"
+
+                    class="w-full
+                        rounded-xl
+                        border border-slate-300
+                        bg-white
+                        px-4 py-3
+                        text-sm"
+                >
+
+                    <option value="">
+                        All Official Dispositions
+                    </option>
+
+
+                    @foreach (
+                        $dispositionStatuses
+                        as $status
+                    )
+
+                        <option
+                            value="{{ $status }}"
+
+                            @selected(
+                                request(
+                                    'disposition_status'
+                                ) === $status
+                            )
+                        >
+                            {{
+                                \Illuminate\Support\Str::headline(
+                                    $status
+                                )
+                            }}
+                        </option>
+
+                    @endforeach
+
+                </select>
+
+            </div>
+
+                {{-- Source Disposition Mode --}}
 
                 <div>
 
@@ -489,7 +604,7 @@
                                text-sm font-semibold
                                text-slate-700"
                     >
-                        Disposition Mode
+                        Source Disposition Mode
                     </label>
 
                     <select
@@ -504,8 +619,8 @@
                                text-sm"
                     >
 
-                        <option value="">
-                            All Modes
+                       <option value="">
+                            All Source Modes
                         </option>
 
                         @foreach (
@@ -735,6 +850,898 @@
 
     </section>
 
+        {{-- ========================================================= --}}
+        {{-- SELECTED SEADO PERFORMANCE SUMMARY --}}
+        {{-- ========================================================= --}}
+
+        @if ($seadoSummary)
+
+            <section>
+
+                <div
+                    class="mb-4 flex
+                        flex-col
+                        justify-between
+                        gap-3
+                        md:flex-row
+                        md:items-end"
+                >
+
+                    <div>
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                tracking-[0.15em]
+                                text-blue-600"
+                        >
+                            SEADO Performance
+                        </p>
+
+
+                        <h2
+                            class="mt-1
+                                text-xl font-bold
+                                text-slate-950"
+                        >
+                            {{
+                                $seadoSummary[
+                                    'name'
+                                ]
+                            }}
+                        </h2>
+
+
+                        <p
+                            class="mt-1
+                                text-sm
+                                text-slate-500"
+                        >
+                            RFA workload for the
+                            selected reporting period.
+                        </p>
+
+                    </div>
+
+
+                    <div
+                        class="rounded-xl
+                            border border-slate-200
+                            bg-white
+                            px-4 py-3
+                            text-sm
+                            text-slate-600"
+                    >
+
+                        <span
+                            class="font-semibold
+                                text-slate-800"
+                        >
+                            Date Filed:
+                        </span>
+
+                        {{
+                            request('date_from')
+                            ?: 'Beginning'
+                        }}
+
+                        →
+
+                        {{
+                            request('date_to')
+                            ?: 'Present'
+                        }}
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    class="grid
+                        grid-cols-2
+                        gap-4
+                        md:grid-cols-3
+                        xl:grid-cols-5"
+                >
+
+                    {{-- TOTAL HANDLED --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-slate-200
+                            bg-white p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                tracking-wider
+                                text-slate-400"
+                        >
+                            RFAs Handled
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-3xl font-bold
+                                text-slate-950"
+                        >
+                            {{
+                                number_format(
+                                    $seadoSummary[
+                                        'total'
+                                    ]
+                                )
+                            }}
+                        </p>
+
+                    </div>
+
+
+                    {{-- PENDING --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-amber-200
+                            bg-amber-50 p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                tracking-wider
+                                text-amber-600"
+                        >
+                            Pending
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-3xl font-bold
+                                text-amber-900"
+                        >
+                            {{
+                                number_format(
+                                    $seadoSummary[
+                                        'pending'
+                                    ]
+                                )
+                            }}
+                        </p>
+
+                    </div>
+
+
+                    {{-- ONGOING --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-blue-200
+                            bg-blue-50 p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                tracking-wider
+                                text-blue-600"
+                        >
+                            Ongoing
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-3xl font-bold
+                                text-blue-900"
+                        >
+                            {{
+                                number_format(
+                                    $seadoSummary[
+                                        'ongoing'
+                                    ]
+                                )
+                            }}
+                        </p>
+
+                    </div>
+
+
+                    {{-- DISPOSED --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-emerald-200
+                            bg-emerald-50 p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                tracking-wider
+                                text-emerald-600"
+                        >
+                            Disposed
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-3xl font-bold
+                                text-emerald-900"
+                        >
+                            {{
+                                number_format(
+                                    $seadoSummary[
+                                        'disposed'
+                                    ]
+                                )
+                            }}
+                        </p>
+
+                    </div>
+
+
+                    {{-- DISPOSITION RATE --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-violet-200
+                            bg-violet-50 p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                tracking-wider
+                                text-violet-600"
+                        >
+                            Disposition Rate
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-3xl font-bold
+                                text-violet-900"
+                        >
+                            {{
+                                number_format(
+                                    $seadoSummary[
+                                        'disposition_rate'
+                                    ],
+                                    1
+                                )
+                            }}%
+                        </p>
+
+                    </div>
+
+
+                    {{-- WORKERS INVOLVED --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-slate-200
+                            bg-white p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                tracking-wider
+                                text-slate-400"
+                        >
+                            Workers Involved
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-2xl font-bold
+                                text-slate-950"
+                        >
+                            {{
+                                number_format(
+                                    $seadoSummary[
+                                        'workers_involved'
+                                    ]
+                                )
+                            }}
+                        </p>
+
+                    </div>
+
+
+                    {{-- WORKERS BENEFITED --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-slate-200
+                            bg-white p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                tracking-wider
+                                text-slate-400"
+                        >
+                            Workers Benefited
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-2xl font-bold
+                                text-slate-950"
+                        >
+                            {{
+                                number_format(
+                                    $seadoSummary[
+                                        'workers_benefited'
+                                    ]
+                                )
+                            }}
+                        </p>
+
+                    </div>
+
+
+                    {{-- MONETARY BENEFIT --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-slate-200
+                            bg-white p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                tracking-wider
+                                text-slate-400"
+                        >
+                            Monetary Benefit
+                        </p>
+
+                        <p
+                            class="mt-3
+                                break-words
+                                text-xl font-bold
+                                text-slate-950"
+                        >
+                            ₱{{
+                                number_format(
+                                    $seadoSummary[
+                                        'monetary_benefit'
+                                    ],
+                                    2
+                                )
+                            }}
+                        </p>
+
+                    </div>
+
+
+                    {{-- AVG PROCESSING --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-slate-200
+                            bg-white p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                tracking-wider
+                                text-slate-400"
+                        >
+                            Avg. Processing Days
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-2xl font-bold
+                                text-slate-950"
+                        >
+                            {{
+                                $seadoSummary[
+                                    'average_processing_days'
+                                ]
+                                ?? '—'
+                            }}
+                        </p>
+
+                    </div>
+
+
+                    {{-- PROCESSING RANGE --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-slate-200
+                            bg-white p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                tracking-wider
+                                text-slate-400"
+                        >
+                            Processing Range
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-lg font-bold
+                                text-slate-950"
+                        >
+
+                            @if (
+                                $seadoSummary[
+                                    'minimum_processing_days'
+                                ] !== null
+                            )
+
+                                {{
+                                    $seadoSummary[
+                                        'minimum_processing_days'
+                                    ]
+                                }}
+
+                                –
+
+                                {{
+                                    $seadoSummary[
+                                        'maximum_processing_days'
+                                    ]
+                                }}
+
+                                days
+
+                            @else
+
+                                —
+
+                            @endif
+
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+        @endif
+
+
+        {{-- ========================================================= --}}
+        {{-- DISPOSITION RESULTS --}}
+        {{-- ========================================================= --}}
+
+        <section
+            class="report-card
+                rounded-2xl
+                border border-slate-200
+                bg-white p-6
+                shadow-sm"
+        >
+
+            <div
+                class="flex flex-col
+                    justify-between
+                    gap-3
+                    lg:flex-row
+                    lg:items-start"
+            >
+
+                <div>
+
+                    <p
+                        class="text-xs font-bold
+                            uppercase
+                            tracking-[0.15em]
+                            text-emerald-600"
+                    >
+                        Disposition Results
+                    </p>
+
+                    <h2
+                        class="mt-1
+                            text-lg font-bold
+                            text-slate-950"
+                    >
+                        Final RFA Outcomes
+                    </h2>
+
+                    <p
+                        class="mt-1
+                            max-w-3xl
+                            text-sm
+                            text-slate-500"
+                    >
+                        Official final dispositions and
+                        raw source disposition modes are
+                        reported separately.
+                    </p>
+
+                </div>
+
+
+                <div
+                    class="rounded-xl
+                        bg-slate-50
+                        px-4 py-3
+                        text-sm
+                        text-slate-600"
+                >
+
+                    Disposed RFAs:
+
+                    <strong
+                        class="ml-1
+                            text-slate-950"
+                    >
+                        {{
+                            number_format(
+                                $dispositionSummary[
+                                    'total_disposed'
+                                ]
+                            )
+                        }}
+                    </strong>
+
+                </div>
+
+            </div>
+
+
+            {{-- SUMMARY CARDS --}}
+
+            <div
+                class="mt-6 grid
+                    grid-cols-1 gap-4
+                    sm:grid-cols-3"
+            >
+
+                <div
+                    class="rounded-xl
+                        border border-emerald-200
+                        bg-emerald-50
+                        p-4"
+                >
+
+                    <p
+                        class="text-xs font-bold
+                            uppercase
+                            tracking-wide
+                            text-emerald-700"
+                    >
+                        Official Disposition Recorded
+                    </p>
+
+                    <p
+                        class="mt-2
+                            text-3xl font-bold
+                            text-emerald-950"
+                    >
+                        {{
+                            number_format(
+                                $dispositionSummary[
+                                    'official_recorded'
+                                ]
+                            )
+                        }}
+                    </p>
+
+                </div>
+
+
+                <div
+                    class="rounded-xl
+                        border border-amber-200
+                        bg-amber-50
+                        p-4"
+                >
+
+                    <p
+                        class="text-xs font-bold
+                            uppercase
+                            tracking-wide
+                            text-amber-700"
+                    >
+                        Official Disposition Missing
+                    </p>
+
+                    <p
+                        class="mt-2
+                            text-3xl font-bold
+                            text-amber-950"
+                    >
+                        {{
+                            number_format(
+                                $dispositionSummary[
+                                    'official_missing'
+                                ]
+                            )
+                        }}
+                    </p>
+
+                </div>
+
+
+                <div
+                    class="rounded-xl
+                        border border-blue-200
+                        bg-blue-50
+                        p-4"
+                >
+
+                    <p
+                        class="text-xs font-bold
+                            uppercase
+                            tracking-wide
+                            text-blue-700"
+                    >
+                        Source Mode Recorded
+                    </p>
+
+                    <p
+                        class="mt-2
+                            text-3xl font-bold
+                            text-blue-950"
+                    >
+                        {{
+                            number_format(
+                                $dispositionSummary[
+                                    'source_mode_recorded'
+                                ]
+                            )
+                        }}
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            {{-- BREAKDOWNS --}}
+
+            <div
+                class="mt-6 grid
+                    grid-cols-1 gap-5
+                    xl:grid-cols-2"
+            >
+
+                {{-- OFFICIAL DISPOSITION --}}
+
+                <div
+                    class="overflow-hidden
+                        rounded-xl
+                        border border-slate-200"
+                >
+
+                    <div
+                        class="border-b
+                            border-slate-200
+                            bg-slate-50
+                            px-5 py-4"
+                    >
+
+                        <h3
+                            class="font-bold
+                                text-slate-900"
+                        >
+                            Official Final Disposition
+                        </h3>
+
+                        <p
+                            class="mt-1
+                                text-xs
+                                text-slate-500"
+                        >
+                            Values stored in
+                            disposition_status.
+                        </p>
+
+                    </div>
+
+
+                    <div
+                        class="divide-y
+                            divide-slate-100"
+                    >
+
+                        @forelse (
+                            $officialDispositionBreakdown
+                            as $status => $total
+                        )
+
+                            <div
+                                class="flex
+                                    items-center
+                                    justify-between
+                                    gap-4
+                                    px-5 py-3"
+                            >
+
+                                <span
+                                    class="text-sm
+                                        font-medium
+                                        text-slate-700"
+                                >
+                                    {{
+                                        \Illuminate\Support\Str::headline(
+                                            $status
+                                        )
+                                    }}
+                                </span>
+
+
+                                <span
+                                    class="rounded-lg
+                                        bg-slate-100
+                                        px-3 py-1
+                                        text-sm font-bold
+                                        text-slate-900"
+                                >
+                                    {{
+                                        number_format(
+                                            $total
+                                        )
+                                    }}
+                                </span>
+
+                            </div>
+
+                        @empty
+
+                            <div
+                                class="px-5 py-8
+                                    text-center
+                                    text-sm
+                                    text-slate-400"
+                            >
+                                No official disposition
+                                values exist for this
+                                filtered report.
+                            </div>
+
+                        @endforelse
+
+                    </div>
+
+                </div>
+
+
+                {{-- RAW SOURCE MODE --}}
+
+                <div
+                    class="overflow-hidden
+                        rounded-xl
+                        border border-slate-200"
+                >
+
+                    <div
+                        class="border-b
+                            border-slate-200
+                            bg-slate-50
+                            px-5 py-4"
+                    >
+
+                        <h3
+                            class="font-bold
+                                text-slate-900"
+                        >
+                            Raw Source Disposition Mode
+                        </h3>
+
+                        <p
+                            class="mt-1
+                                text-xs
+                                text-slate-500"
+                        >
+                            Original CSV values.
+                            No official meaning is
+                            inferred by the system.
+                        </p>
+
+                    </div>
+
+
+                    <div
+                        class="divide-y
+                            divide-slate-100"
+                    >
+
+                        @forelse (
+                            $dispositionModeBreakdown
+                            as $mode => $total
+                        )
+
+                            <div
+                                class="flex
+                                    items-center
+                                    justify-between
+                                    gap-4
+                                    px-5 py-3"
+                            >
+
+                                <span
+                                    class="text-sm
+                                        font-semibold
+                                        text-slate-700"
+                                >
+                                    {{ $mode }}
+                                </span>
+
+
+                                <span
+                                    class="rounded-lg
+                                        bg-slate-100
+                                        px-3 py-1
+                                        text-sm font-bold
+                                        text-slate-900"
+                                >
+                                    {{
+                                        number_format(
+                                            $total
+                                        )
+                                    }}
+                                </span>
+
+                            </div>
+
+                        @empty
+
+                            <div
+                                class="px-5 py-8
+                                    text-center
+                                    text-sm
+                                    text-slate-400"
+                            >
+                                No source disposition
+                                modes exist for this
+                                filtered report.
+                            </div>
+
+                        @endforelse
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div
+                class="mt-5
+                    rounded-xl
+                    border border-amber-200
+                    bg-amber-50
+                    px-4 py-3
+                    text-xs leading-5
+                    text-amber-800"
+            >
+                Source disposition codes such as
+                SC, RCA, SWBF, LOI, NSWBF, DP,
+                ROGO, and RVA are preserved exactly
+                as imported. They are not converted
+                into official final dispositions
+                without an approved mapping.
+            </div>
+
+</section>
 
     {{-- ========================================================= --}}
     {{-- ACTIVE PCT SUMMARY --}}
@@ -964,7 +1971,7 @@
     <section
         class="grid grid-cols-1
                gap-5
-               xl:grid-cols-3"
+               xl:grid-cols-2"
     >
 
         {{-- OFFICE --}}
@@ -1102,77 +2109,6 @@
                                text-slate-400"
                     >
                         No data.
-                    </div>
-
-                @endforelse
-
-            </div>
-
-        </div>
-
-
-        {{-- DISPOSITION MODE --}}
-
-        <div
-            class="report-card
-                   overflow-hidden
-                   rounded-2xl
-                   border border-slate-200
-                   bg-white shadow-sm"
-        >
-
-            <div
-                class="border-b
-                       border-slate-100
-                       px-5 py-4"
-            >
-                <h3
-                    class="font-bold
-                           text-slate-950"
-                >
-                    By Disposition Mode
-                </h3>
-            </div>
-
-
-            <div
-                class="divide-y
-                       divide-slate-100"
-            >
-
-                @forelse (
-                    $dispositionModeBreakdown
-                    as $label => $total
-                )
-
-                    <div
-                        class="flex
-                               justify-between
-                               gap-4
-                               px-5 py-3
-                               text-sm"
-                    >
-
-                        <span
-                            class="text-slate-600"
-                        >
-                            {{ $label }}
-                        </span>
-
-                        <strong>
-                            {{ $total }}
-                        </strong>
-
-                    </div>
-
-                @empty
-
-                    <div
-                        class="px-5 py-8
-                               text-sm
-                               text-slate-400"
-                    >
-                        No disposition data.
                     </div>
 
                 @endforelse
@@ -1389,6 +2325,15 @@
 
                         <th
                             class="px-4 py-3
+                                text-left
+                                text-xs font-bold
+                                uppercase
+                                text-slate-500"
+                        >
+                            SEADO
+                        </th>
+                        <th
+                            class="px-4 py-3
                                    text-left
                                    text-xs font-bold
                                    uppercase
@@ -1414,7 +2359,8 @@
                                    uppercase
                                    text-slate-500"
                         >
-                            Disposition Mode
+                            {{-- Disposition Mode --}}
+                            Official / Source Disposition
                         </th>
 
                         <th
@@ -1550,6 +2496,16 @@
                                 }}
                             </td>
 
+                            <td
+                                class="px-4 py-4
+                                    text-slate-700"
+                            >
+                                {{
+                                    $rfa->seado_name
+                                    ?: '—'
+                                }}
+                            </td>
+
 
                             @foreach (
                                 [
@@ -1618,14 +2574,50 @@
 
 
                             <td
-                                class="px-4 py-4
-                                       text-slate-600"
-                            >
-                                {{
-                                    $rfa->disposition_mode
-                                    ?: '—'
-                                }}
-                            </td>
+        class="px-4 py-4"
+    >
+
+        @if ($rfa->disposition_status)
+
+            <div
+                class="text-sm
+                    font-semibold
+                    text-slate-800"
+            >
+                {{
+                    \Illuminate\Support\Str::headline(
+                        $rfa->disposition_status
+                    )
+                }}
+            </div>
+
+        @else
+
+            <div
+                class="text-sm
+                    text-slate-400"
+            >
+                No official disposition
+            </div>
+
+        @endif
+
+
+        @if ($rfa->disposition_mode)
+
+            <div
+                class="mt-1
+                    text-xs
+                    font-semibold
+                    text-slate-500"
+            >
+                Source:
+                {{ $rfa->disposition_mode }}
+            </div>
+
+        @endif
+
+    </td>
 
 
                             <td
@@ -1663,7 +2655,7 @@
                         <tr>
 
                             <td
-                                colspan="10"
+                                colspan="11"
                                 class="px-6 py-14
                                        text-center
                                        text-sm
