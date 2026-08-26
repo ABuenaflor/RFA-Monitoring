@@ -406,6 +406,196 @@ $dispositionSummary = [
             ->sum(),
 ];
 
+            /*
+            |--------------------------------------------------------------------------
+            | Conference analytics
+            |--------------------------------------------------------------------------
+            */
+
+            $noConferenceCount =
+                $allRfas
+                    ->filter(
+                        fn (Rfa $rfa) =>
+                            $rfa->date_initial_conference === null
+                            &&
+                            $rfa->date_second_conference === null
+                    )
+                    ->count();
+
+
+            $firstConferenceCount =
+                $allRfas
+                    ->filter(
+                        fn (Rfa $rfa) =>
+                            $rfa->date_initial_conference !== null
+                    )
+                    ->count();
+
+
+            $firstOnlyConferenceCount =
+                $allRfas
+                    ->filter(
+                        fn (Rfa $rfa) =>
+                            $rfa->date_initial_conference !== null
+                            &&
+                            $rfa->date_second_conference === null
+                    )
+                    ->count();
+
+
+            $secondConferenceCount =
+                $allRfas
+                    ->filter(
+                        fn (Rfa $rfa) =>
+                            $rfa->date_second_conference !== null
+                    )
+                    ->count();
+
+
+            $disposedAfterFirstConference =
+                $allRfas
+                    ->filter(
+                        function (Rfa $rfa): bool {
+                            if (
+                                $rfa->date_disposed === null
+                                ||
+                                $rfa->date_initial_conference === null
+                            ) {
+                                return false;
+                            }
+
+                            /*
+                            * "After first conference" here means the
+                            * RFA reached at least the first conference
+                            * before or on the date it was disposed.
+                            */
+                            return $rfa
+                                ->date_disposed
+                                ->greaterThanOrEqualTo(
+                                    $rfa->date_initial_conference
+                                );
+                        }
+                    )
+                    ->count();
+
+
+            $disposedAfterSecondConference =
+                $allRfas
+                    ->filter(
+                        function (Rfa $rfa): bool {
+                            if (
+                                $rfa->date_disposed === null
+                                ||
+                                $rfa->date_second_conference === null
+                            ) {
+                                return false;
+                            }
+
+                            return $rfa
+                                ->date_disposed
+                                ->greaterThanOrEqualTo(
+                                    $rfa->date_second_conference
+                                );
+                        }
+                    )
+                    ->count();
+
+
+            $conferenceIssues = $allRfas
+                ->filter(
+                    function (Rfa $rfa): bool {
+                        /*
+                        * Second conference exists but first conference
+                        * is missing.
+                        */
+                        if (
+                            $rfa->date_second_conference !== null
+                            &&
+                            $rfa->date_initial_conference === null
+                        ) {
+                            return true;
+                        }
+
+                        /*
+                        * Second conference occurs before first.
+                        */
+                        if (
+                            $rfa->date_initial_conference !== null
+                            &&
+                            $rfa->date_second_conference !== null
+                            &&
+                            $rfa
+                                ->date_second_conference
+                                ->lt(
+                                    $rfa->date_initial_conference
+                                )
+                        ) {
+                            return true;
+                        }
+
+                        /*
+                        * First conference occurs after disposition.
+                        */
+                        if (
+                            $rfa->date_initial_conference !== null
+                            &&
+                            $rfa->date_disposed !== null
+                            &&
+                            $rfa
+                                ->date_initial_conference
+                                ->gt(
+                                    $rfa->date_disposed
+                                )
+                        ) {
+                            return true;
+                        }
+
+                        /*
+                        * Second conference occurs after disposition.
+                        */
+                        if (
+                            $rfa->date_second_conference !== null
+                            &&
+                            $rfa->date_disposed !== null
+                            &&
+                            $rfa
+                                ->date_second_conference
+                                ->gt(
+                                    $rfa->date_disposed
+                                )
+                        ) {
+                            return true;
+                        }
+
+                        return false;
+                    }
+                )
+                ->count();
+
+
+            $conferenceSummary = [
+                'no_conference' =>
+                    $noConferenceCount,
+
+                'first_conference' =>
+                    $firstConferenceCount,
+
+                'first_only' =>
+                    $firstOnlyConferenceCount,
+
+                'second_conference' =>
+                    $secondConferenceCount,
+
+                'disposed_after_first' =>
+                    $disposedAfterFirstConference,
+
+                'disposed_after_second' =>
+                    $disposedAfterSecondConference,
+
+                'data_issues' =>
+                    $conferenceIssues,
+            ];
+
         /*
         |--------------------------------------------------------------------------
         | Paginated report records
@@ -555,6 +745,9 @@ $dispositionSummary = [
 
             'dispositionSummary' =>
                 $dispositionSummary,
+
+            'conferenceSummary' =>
+            $conferenceSummary,
 
             'dispositionStatuses' =>
                 $dispositionStatuses,
@@ -929,6 +1122,49 @@ $dispositionSummary = [
 
                 /*
         |--------------------------------------------------------------------------
+        | Conference filter
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $request->filled(
+                'conference_level'
+            )
+        ) {
+            match (
+                $request->query(
+                    'conference_level'
+                )
+            ) {
+                'none' =>
+                    $query
+                        ->whereNull(
+                            'date_initial_conference'
+                        )
+                        ->whereNull(
+                            'date_second_conference'
+                        ),
+
+                'first_only' =>
+                    $query
+                        ->whereNotNull(
+                            'date_initial_conference'
+                        )
+                        ->whereNull(
+                            'date_second_conference'
+                        ),
+
+                'second' =>
+                    $query
+                        ->whereNotNull(
+                            'date_second_conference'
+                        ),
+
+                default => null,
+            };
+        }
+                /*
+        |--------------------------------------------------------------------------
         | Official final disposition
         |--------------------------------------------------------------------------
         */
@@ -984,6 +1220,12 @@ $dispositionSummary = [
 
                 'seado_name' =>
                 ['nullable', 'string', 'max:150'],
+
+            'conference_level' =>
+                [
+                    'nullable',
+                    'in:none,first_only,second',
+                ],
 
             'monitoring_bucket' =>
                 [

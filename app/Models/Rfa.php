@@ -43,6 +43,7 @@ class Rfa extends Model
         'date_assigned_seado',
 
         'date_initial_conference',
+        'date_second_conference',
         'date_both_parties_appeared',
 
         'workers_involved',
@@ -78,6 +79,7 @@ class Rfa extends Model
             'date_assigned_seado' => 'date',
 
             'date_initial_conference' => 'date',
+            'date_second_conference' => 'date',
             'date_both_parties_appeared' => 'date',
 
             'date_disposed' => 'date',
