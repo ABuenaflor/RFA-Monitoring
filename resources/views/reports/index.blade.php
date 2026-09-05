@@ -368,6 +368,73 @@
 
                 </div>
 
+                {{-- CONFERENCE LEVEL --}}
+
+                <div>
+
+                    <label
+                        for="conference_level"
+                        class="mb-2 block
+                            text-sm font-semibold
+                            text-slate-700"
+                    >
+                        Conference
+                    </label>
+
+
+                    <select
+                        id="conference_level"
+                        name="conference_level"
+
+                        class="w-full
+                            rounded-xl
+                            border border-slate-300
+                            bg-white
+                            px-4 py-3
+                            text-sm"
+                    >
+
+                        <option value="">
+                            All Conference Levels
+                        </option>
+
+                        <option
+                            value="none"
+                            @selected(
+                                request(
+                                    'conference_level'
+                                ) === 'none'
+                            )
+                        >
+                            No Conference
+                        </option>
+
+                        <option
+                            value="first_only"
+                            @selected(
+                                request(
+                                    'conference_level'
+                                ) === 'first_only'
+                            )
+                        >
+                            First Conference Only
+                        </option>
+
+                        <option
+                            value="second"
+                            @selected(
+                                request(
+                                    'conference_level'
+                                ) === 'second'
+                            )
+                        >
+                            Reached Second Conference
+                        </option>
+
+                    </select>
+
+                </div>
+
                 {{-- MONITORING --}}
 
                 <div>
@@ -1743,6 +1810,292 @@
 
 </section>
 
+            {{-- ========================================================= --}}
+            {{-- CONFERENCE MONITORING --}}
+            {{-- ========================================================= --}}
+
+            <section>
+
+                <div class="mb-4">
+
+                    <p
+                        class="text-xs font-bold
+                            uppercase
+                            tracking-[0.15em]
+                            text-indigo-600"
+                    >
+                        Conference Monitoring
+                    </p>
+
+                    <h2
+                        class="mt-1
+                            text-lg font-bold
+                            text-slate-950"
+                    >
+                        RFA Conference Progress
+                    </h2>
+
+                    <p
+                        class="mt-1
+                            text-sm
+                            text-slate-500"
+                    >
+                        Conference metrics reflect the same
+                        filters currently applied to this
+                        report.
+                    </p>
+
+                </div>
+
+
+                <div
+                    class="grid
+                        grid-cols-2 gap-4
+                        md:grid-cols-3
+                        xl:grid-cols-7"
+                >
+
+                    {{-- NO CONFERENCE --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-slate-200
+                            bg-white p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                text-slate-400"
+                        >
+                            No Conference
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-3xl font-bold
+                                text-slate-950"
+                        >
+                            {{
+                                number_format(
+                                    $conferenceSummary[
+                                        'no_conference'
+                                    ]
+                                )
+                            }}
+                        </p>
+
+                    </div>
+
+
+                    {{-- FIRST CONFERENCE --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-blue-200
+                            bg-blue-50 p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                text-blue-600"
+                        >
+                            Reached 1st Conference
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-3xl font-bold
+                                text-blue-950"
+                        >
+                            {{
+                                number_format(
+                                    $conferenceSummary[
+                                        'first_conference'
+                                    ]
+                                )
+                            }}
+                        </p>
+
+                    </div>
+
+
+                    {{-- FIRST ONLY --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-cyan-200
+                            bg-cyan-50 p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                text-cyan-700"
+                        >
+                            1st Conference Only
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-3xl font-bold
+                                text-cyan-950"
+                        >
+                            {{
+                                number_format(
+                                    $conferenceSummary[
+                                        'first_only'
+                                    ]
+                                )
+                            }}
+                        </p>
+
+                    </div>
+
+
+                    {{-- SECOND CONFERENCE --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-violet-200
+                            bg-violet-50 p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                text-violet-700"
+                        >
+                            Reached 2nd Conference
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-3xl font-bold
+                                text-violet-950"
+                        >
+                            {{
+                                number_format(
+                                    $conferenceSummary[
+                                        'second_conference'
+                                    ]
+                                )
+                            }}
+                        </p>
+
+                    </div>
+
+
+                    {{-- DISPOSED AFTER FIRST --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-emerald-200
+                            bg-emerald-50 p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                text-emerald-700"
+                        >
+                            Disposed After 1st
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-3xl font-bold
+                                text-emerald-950"
+                        >
+                            {{
+                                number_format(
+                                    $conferenceSummary[
+                                        'disposed_after_first'
+                                    ]
+                                )
+                            }}
+                        </p>
+
+                    </div>
+
+
+                    {{-- DISPOSED AFTER SECOND --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-green-200
+                            bg-green-50 p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                text-green-700"
+                        >
+                            Disposed After 2nd
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-3xl font-bold
+                                text-green-950"
+                        >
+                            {{
+                                number_format(
+                                    $conferenceSummary[
+                                        'disposed_after_second'
+                                    ]
+                                )
+                            }}
+                        </p>
+
+                    </div>
+
+
+                    {{-- DATA ISSUES --}}
+
+                    <div
+                        class="rounded-2xl
+                            border border-rose-200
+                            bg-rose-50 p-5
+                            shadow-sm"
+                    >
+
+                        <p
+                            class="text-xs font-bold
+                                uppercase
+                                text-rose-700"
+                        >
+                            Data Issues
+                        </p>
+
+                        <p
+                            class="mt-3
+                                text-3xl font-bold
+                                text-rose-950"
+                        >
+                            {{
+                                number_format(
+                                    $conferenceSummary[
+                                        'data_issues'
+                                    ]
+                                )
+                            }}
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </section>
+
     {{-- ========================================================= --}}
     {{-- ACTIVE PCT SUMMARY --}}
     {{-- ========================================================= --}}
@@ -2253,7 +2606,7 @@
 
             <table
                 class="report-table
-                       min-w-[1500px]
+                       min-w-[1750px]
                        w-full
                        divide-y
                        divide-slate-200"
@@ -2331,6 +2684,25 @@
                                 text-slate-500"
                         >
                             SEADO
+                        </th>
+                        <th
+                            class="px-4 py-3
+                                text-left
+                                text-xs font-bold
+                                uppercase
+                                text-slate-500"
+                        >
+                            1st Conference
+                        </th>
+
+                        <th
+                            class="px-4 py-3
+                                text-left
+                                text-xs font-bold
+                                uppercase
+                                text-slate-500"
+                        >
+                            2nd Conference
                         </th>
                         <th
                             class="px-4 py-3
@@ -2506,6 +2878,31 @@
                                 }}
                             </td>
 
+                            <td
+                                class="whitespace-nowrap
+                                    px-4 py-4
+                                    text-slate-600"
+                            >
+                                {{
+                                    $rfa->date_initial_conference
+                                        ?->format('M d, Y')
+                                    ?? '—'
+                                }}
+                            </td>
+
+
+                            <td
+                                class="whitespace-nowrap
+                                    px-4 py-4
+                                    text-slate-600"
+                            >
+                                {{
+                                    $rfa->date_second_conference
+                                        ?->format('M d, Y')
+                                    ?? '—'
+                                }}
+                            </td>
+
 
                             @foreach (
                                 [
@@ -2655,7 +3052,7 @@
                         <tr>
 
                             <td
-                                colspan="11"
+                                colspan="13"
                                 class="px-6 py-14
                                        text-center
                                        text-sm
