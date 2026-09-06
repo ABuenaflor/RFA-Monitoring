@@ -9,9 +9,11 @@ class PctService
 {
     public const MAX_DAYS = 3;
 
-    /**
-     * Evaluate all PCT-related information for one RFA.
-     */
+    private const DISPOSITION_MAX_DAYS = 30;
+
+
+
+
     public function evaluate(
         Rfa $rfa,
         ?Carbon $asOf = null
@@ -58,14 +60,479 @@ class PctService
         return [
             'stage_one' => $stageOne,
             'stage_two' => $stageTwo,
+            'disposition_pct' =>
+            $this->evaluateDispositionPct(
+                $rfa,
+                $asOf
+            ),
             'total_processing' =>
                 $this->totalProcessing($rfa),
         ];
     }
 
-    /**
-     * Evaluate one processing checkpoint.
-     */
+    private function evaluateDispositionPct(
+    Rfa $rfa,
+    ?Carbon $asOf = null
+): array {
+    $asOf = (
+        $asOf
+        ?? now()
+    )
+        ->copy()
+        ->startOfDay();
+
+    $start = $rfa->date_filed
+        ? Carbon::parse(
+            $rfa->date_filed
+        )->startOfDay()
+        : null;
+
+    $end = $rfa->date_disposed
+        ? Carbon::parse(
+            $rfa->date_disposed
+        )->startOfDay()
+        : null;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Missing Date Filed
+    |--------------------------------------------------------------------------
+    */
+
+    if ($start === null) {
+        return [
+            'stage_key' =>
+                'disposition',
+
+            'label' =>
+                'Overall Disposition PCT',
+
+            'state' =>
+                'missing_start',
+
+            'is_active' =>
+                false,
+
+            'is_completed' =>
+                false,
+
+            'days' =>
+                null,
+
+            'status_key' =>
+                'indeterminate',
+
+            'status_label' =>
+                'Disposition PCT Indeterminate',
+
+            'is_compliant' =>
+                null,
+
+            'start' =>
+                null,
+
+            'end' =>
+                $end,
+
+            'deadline' =>
+                null,
+
+            'remaining_days' =>
+                null,
+
+            'overdue_days' =>
+                null,
+
+            'message' =>
+                'Date Filed is missing.',
+        ];
+    }
+
+    $deadline = $start
+        ->copy()
+        ->addDays(
+            self::DISPOSITION_MAX_DAYS
+        );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Completed / disposed RFA
+    |--------------------------------------------------------------------------
+    */
+
+    if ($end !== null) {
+        $days =
+            $this->signedCalendarDays(
+                $start,
+                $end
+            );
+
+        if ($days < 0) {
+            return [
+                'stage_key' =>
+                    'disposition',
+
+                'label' =>
+                    'Overall Disposition PCT',
+
+                'state' =>
+                    'invalid',
+
+                'is_active' =>
+                    false,
+
+                'is_completed' =>
+                    false,
+
+                'days' =>
+                    $days,
+
+                'status_key' =>
+                    'indeterminate',
+
+                'status_label' =>
+                    'Disposition PCT Indeterminate',
+
+                'is_compliant' =>
+                    null,
+
+                'start' =>
+                    $start,
+
+                'end' =>
+                    $end,
+
+                'deadline' =>
+                    $deadline,
+
+                'remaining_days' =>
+                    null,
+
+                'overdue_days' =>
+                    null,
+
+                'message' =>
+                    'Date Disposed is earlier than Date Filed.',
+            ];
+        }
+
+        $withinPct =
+            $days
+            <= self::DISPOSITION_MAX_DAYS;
+
+        return [
+            'stage_key' =>
+                'disposition',
+
+            'label' =>
+                'Overall Disposition PCT',
+
+            'state' =>
+                'completed',
+
+            'is_active' =>
+                false,
+
+            'is_completed' =>
+                true,
+
+            'days' =>
+                $days,
+
+            'status_key' =>
+                $withinPct
+                    ? 'disposed_within'
+                    : 'disposed_beyond',
+
+            'status_label' =>
+                $withinPct
+                    ? 'Disposed Within PCT'
+                    : 'Disposed Beyond PCT',
+
+            'is_compliant' =>
+                $withinPct,
+
+            'start' =>
+                $start,
+
+            'end' =>
+                $end,
+
+            'deadline' =>
+                $deadline,
+
+            'remaining_days' =>
+                null,
+
+            'overdue_days' =>
+                $withinPct
+                    ? 0
+                    : (
+                        $days
+                        - self::DISPOSITION_MAX_DAYS
+                    ),
+
+            'message' =>
+                $withinPct
+                    ? 'RFA was disposed within the 30-day PCT.'
+                    : 'RFA was disposed beyond the 30-day PCT.',
+        ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Already marked disposed but Date Disposed is missing
+    |--------------------------------------------------------------------------
+    |
+    | Do not treat this as an active timer.
+    |
+    */
+
+    if (
+        $this->showsDisposedWithoutDate(
+            $rfa
+        )
+    ) {
+        return [
+            'stage_key' =>
+                'disposition',
+
+            'label' =>
+                'Overall Disposition PCT',
+
+            'state' =>
+                'missing_end',
+
+            'is_active' =>
+                false,
+
+            'is_completed' =>
+                false,
+
+            'days' =>
+                null,
+
+            'status_key' =>
+                'indeterminate',
+
+            'status_label' =>
+                'Disposition PCT Indeterminate',
+
+            'is_compliant' =>
+                null,
+
+            'start' =>
+                $start,
+
+            'end' =>
+                null,
+
+            'deadline' =>
+                $deadline,
+
+            'remaining_days' =>
+                null,
+
+            'overdue_days' =>
+                null,
+
+            'message' =>
+                'RFA is marked disposed but Date Disposed is missing.',
+        ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Active / undisposed RFA
+    |--------------------------------------------------------------------------
+    */
+
+    $days =
+        $this->signedCalendarDays(
+            $start,
+            $asOf
+        );
+
+    if ($days < 0) {
+        return [
+            'stage_key' =>
+                'disposition',
+
+            'label' =>
+                'Overall Disposition PCT',
+
+            'state' =>
+                'invalid',
+
+            'is_active' =>
+                false,
+
+            'is_completed' =>
+                false,
+
+            'days' =>
+                $days,
+
+            'status_key' =>
+                'indeterminate',
+
+            'status_label' =>
+                'Disposition PCT Indeterminate',
+
+            'is_compliant' =>
+                null,
+
+            'start' =>
+                $start,
+
+            'end' =>
+                null,
+
+            'deadline' =>
+                $deadline,
+
+            'remaining_days' =>
+                null,
+
+            'overdue_days' =>
+                null,
+
+            'message' =>
+                'Date Filed is later than the monitoring date.',
+        ];
+    }
+
+    if (
+        $days
+        < self::DISPOSITION_MAX_DAYS
+    ) {
+        $statusKey =
+            'active_within';
+
+        $statusLabel =
+            'Active Within 30-Day PCT';
+
+        $message =
+            'RFA is still within the 30-day disposition PCT.';
+    } elseif (
+        $days
+        === self::DISPOSITION_MAX_DAYS
+    ) {
+        $statusKey =
+            'due_today';
+
+        $statusLabel =
+            'Due Today';
+
+        $message =
+            'RFA has reached the 30-day disposition deadline.';
+    } else {
+        $statusKey =
+            'active_beyond';
+
+        $statusLabel =
+            'Active Beyond 30-Day PCT';
+
+        $message =
+            'RFA remains undisposed beyond the 30-day PCT deadline.';
+    }
+
+    return [
+        'stage_key' =>
+            'disposition',
+
+        'label' =>
+            'Overall Disposition PCT',
+
+        'state' =>
+            'active',
+
+        'is_active' =>
+            true,
+
+        'is_completed' =>
+            false,
+
+        'days' =>
+            $days,
+
+        'status_key' =>
+            $statusKey,
+
+        'status_label' =>
+            $statusLabel,
+
+        'is_compliant' =>
+            null,
+
+        'start' =>
+            $start,
+
+        'end' =>
+            null,
+
+        'deadline' =>
+            $deadline,
+
+        'remaining_days' =>
+            max(
+                self::DISPOSITION_MAX_DAYS
+                - $days,
+                0
+            ),
+
+        'overdue_days' =>
+            max(
+                $days
+                - self::DISPOSITION_MAX_DAYS,
+                0
+            ),
+
+        'message' =>
+            $message,
+    ];
+}
+
+    private function showsDisposedWithoutDate(
+    Rfa $rfa
+): bool {
+    if (
+        $rfa->monitoring_bucket
+        === 'disposed'
+    ) {
+        return true;
+    }
+
+    if (
+        $rfa->status
+        === 'disposed'
+    ) {
+        return true;
+    }
+
+    return strtolower(
+        trim(
+            (string)
+            $rfa->source_case_status
+        )
+    ) === 'disposed';
+}
+
+private function signedCalendarDays(
+    Carbon $start,
+    Carbon $end
+): int {
+    return (int) $start
+        ->copy()
+        ->startOfDay()
+        ->diffInDays(
+            $end
+                ->copy()
+                ->startOfDay(),
+            false
+        );
+}
+
     private function checkpoint(
         Rfa $rfa,
         string $stageKey,

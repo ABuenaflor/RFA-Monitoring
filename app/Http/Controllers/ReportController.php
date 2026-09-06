@@ -107,6 +107,9 @@ class ReportController extends Controller
         $historicalStageTwo =
             $this->emptyHistoricalSummary();
 
+            $reportDispositionPct =
+        $this->emptySeadoDispositionPctSummary();
+
         $processingDays = collect();
 
         foreach ($allRfas as $rfa) {
@@ -133,6 +136,13 @@ class ReportController extends Controller
                 $evaluation['stage_two']
             );
 
+            $this->addSeadoDispositionPctResult(
+                $reportDispositionPct,
+                $evaluation[
+                    'disposition_pct'
+                ]
+            );
+
             if (
                 $evaluation[
                     'total_processing'
@@ -154,6 +164,11 @@ class ReportController extends Controller
         $historicalStageTwo =
             $this->finalizeHistoricalSummary(
                 $historicalStageTwo
+            );
+
+            $reportDispositionPct =
+            $this->finalizeSeadoDispositionPctSummary(
+                $reportDispositionPct
             );
 
         $processingSummary = [
@@ -304,6 +319,74 @@ class ReportController extends Controller
                     ];
                 }
 
+
+        /*
+|--------------------------------------------------------------------------
+| Selected SEADO PCT performance
+|--------------------------------------------------------------------------
+*/
+
+$seadoPctSummary = null;
+
+if ($selectedSeado !== '') {
+    $stageOneSummary =
+        $this->emptySeadoCheckpointSummary();
+
+    $stageTwoSummary =
+        $this->emptySeadoCheckpointSummary();
+
+    $dispositionPctSummary =
+        $this->emptySeadoDispositionPctSummary();
+
+
+    foreach ($allRfas as $rfa) {
+        $evaluation =
+            $pctService->evaluate($rfa);
+
+        $this->addSeadoCheckpointResult(
+            $stageOneSummary,
+            $evaluation['stage_one']
+        );
+
+        $this->addSeadoCheckpointResult(
+            $stageTwoSummary,
+            $evaluation['stage_two']
+        );
+
+        $this->addSeadoDispositionPctResult(
+            $dispositionPctSummary,
+            $evaluation['disposition_pct']
+        );
+    }
+
+
+    $stageOneSummary =
+        $this->finalizeSeadoCheckpointSummary(
+            $stageOneSummary
+        );
+
+    $stageTwoSummary =
+        $this->finalizeSeadoCheckpointSummary(
+            $stageTwoSummary
+        );
+
+    $dispositionPctSummary =
+        $this->finalizeSeadoDispositionPctSummary(
+            $dispositionPctSummary
+        );
+
+
+    $seadoPctSummary = [
+        'stage_one' =>
+            $stageOneSummary,
+
+        'stage_two' =>
+            $stageTwoSummary,
+
+        'disposition' =>
+            $dispositionPctSummary,
+    ];
+}
         /*
         |--------------------------------------------------------------------------
         | Management breakdowns
@@ -722,6 +805,9 @@ $dispositionSummary = [
             'summary' =>
                 $summary,
 
+            'seadoPctSummary' =>
+            $seadoPctSummary,
+
             'activePct' =>
                 $activePct,
 
@@ -730,6 +816,9 @@ $dispositionSummary = [
 
             'historicalStageTwo' =>
                 $historicalStageTwo,
+
+            'reportDispositionPct' =>
+                $reportDispositionPct,
 
             'processingSummary' =>
                 $processingSummary,
@@ -774,6 +863,325 @@ $dispositionSummary = [
                 $dispositionModes,
         ]);
     }
+
+public function print(
+    Request $request,
+    PctService $pctService
+) {
+    $this->validateFilters(
+        $request
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Apply exactly the same report filters
+    |--------------------------------------------------------------------------
+    */
+
+    $query =
+        $this->filteredQuery(
+            $request
+        );
+
+    $rfas =
+        $query
+            ->orderBy(
+                'date_filed'
+            )
+            ->orderBy('id')
+            ->get();
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | PCT evaluations for every printed record
+            |--------------------------------------------------------------------------
+            */
+
+            $recordPct =
+                $rfas->mapWithKeys(
+                    function ($rfa) use (
+                        $pctService
+                    ) {
+                        return [
+                            $rfa->id =>
+                                $pctService
+                                    ->evaluate(
+                                        $rfa
+                                    ),
+                        ];
+                    }
+                );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Basic report summary
+            |--------------------------------------------------------------------------
+            */
+
+            $summary = [
+                'total' =>
+                    $rfas->count(),
+
+                'pending' =>
+                    $rfas
+                        ->where(
+                            'monitoring_bucket',
+                            'pending'
+                        )
+                        ->count(),
+
+                'ongoing' =>
+                    $rfas
+                        ->where(
+                            'monitoring_bucket',
+                            'ongoing'
+                        )
+                        ->count(),
+
+                'disposed' =>
+                    $rfas
+                        ->where(
+                            'monitoring_bucket',
+                            'disposed'
+                        )
+                        ->count(),
+
+                'workers_involved' =>
+                    (int) $rfas->sum(
+                        'workers_involved'
+                    ),
+
+                'workers_benefited' =>
+                    (int) $rfas->sum(
+                        'workers_benefited'
+                    ),
+
+                'monetary_benefit' =>
+                    (float) $rfas->sum(
+                        'monetary_benefit'
+                    ),
+            ];
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Overall 30-day disposition PCT
+            |--------------------------------------------------------------------------
+            */
+
+            $dispositionPctSummary =
+                $this
+                    ->emptySeadoDispositionPctSummary();
+
+            foreach ($recordPct as $pct) {
+                $this
+                    ->addSeadoDispositionPctResult(
+                        $dispositionPctSummary,
+                        $pct[
+                            'disposition_pct'
+                        ]
+                    );
+            }
+
+            $dispositionPctSummary =
+                $this
+                    ->finalizeSeadoDispositionPctSummary(
+                        $dispositionPctSummary
+                    );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Conference monitoring
+            |--------------------------------------------------------------------------
+            */
+
+            $conferenceIssues =
+                $rfas->filter(
+                    function ($rfa) {
+                        if (
+                            $rfa
+                                ->date_second_conference
+                            &&
+                            ! $rfa
+                                ->date_initial_conference
+                        ) {
+                            return true;
+                        }
+
+                        if (
+                            $rfa
+                                ->date_second_conference
+                            &&
+                            $rfa
+                                ->date_initial_conference
+                            &&
+                            $rfa
+                                ->date_second_conference
+                                ->lt(
+                                    $rfa
+                                        ->date_initial_conference
+                                )
+                        ) {
+                            return true;
+                        }
+
+                        if (
+                            $rfa
+                                ->date_initial_conference
+                            &&
+                            $rfa
+                                ->date_disposed
+                            &&
+                            $rfa
+                                ->date_initial_conference
+                                ->gt(
+                                    $rfa
+                                        ->date_disposed
+                                )
+                        ) {
+                            return true;
+                        }
+
+                        if (
+                            $rfa
+                                ->date_second_conference
+                            &&
+                            $rfa
+                                ->date_disposed
+                            &&
+                            $rfa
+                                ->date_second_conference
+                                ->gt(
+                                    $rfa
+                                        ->date_disposed
+                                )
+                        ) {
+                            return true;
+                        }
+
+                        return false;
+                    }
+                )
+                ->count();
+
+
+            $conferenceSummary = [
+                'no_conference' =>
+                    $rfas->filter(
+                        fn ($rfa) =>
+                            ! $rfa
+                                ->date_initial_conference
+                            &&
+                            ! $rfa
+                                ->date_second_conference
+                    )->count(),
+
+                'first_conference' =>
+                    $rfas
+                        ->whereNotNull(
+                            'date_initial_conference'
+                        )
+                        ->count(),
+
+                'first_only' =>
+                    $rfas->filter(
+                        fn ($rfa) =>
+                            $rfa
+                                ->date_initial_conference
+                            &&
+                            ! $rfa
+                                ->date_second_conference
+                    )->count(),
+
+                'second_conference' =>
+                    $rfas
+                        ->whereNotNull(
+                            'date_second_conference'
+                        )
+                        ->count(),
+
+                'disposed_after_first' =>
+                    $rfas->filter(
+                        fn ($rfa) =>
+                            $rfa
+                                ->date_initial_conference
+                            &&
+                            $rfa
+                                ->date_disposed
+                            &&
+                            $rfa
+                                ->date_disposed
+                                ->gte(
+                                    $rfa
+                                        ->date_initial_conference
+                                )
+                    )->count(),
+
+                'disposed_after_second' =>
+                    $rfas->filter(
+                        fn ($rfa) =>
+                            $rfa
+                                ->date_second_conference
+                            &&
+                            $rfa
+                                ->date_disposed
+                            &&
+                            $rfa
+                                ->date_disposed
+                                ->gte(
+                                    $rfa
+                                        ->date_second_conference
+                                )
+                    )->count(),
+
+                'data_issues' =>
+                    $conferenceIssues,
+            ];
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Selected SEADO
+            |--------------------------------------------------------------------------
+            */
+
+            $selectedSeado =
+                trim(
+                    (string)
+                    $request->query(
+                        'seado_name',
+                        ''
+                    )
+                );
+
+
+            return view(
+                'reports.print',
+                [
+                    'rfas' =>
+                        $rfas,
+
+                    'recordPct' =>
+                        $recordPct,
+
+                    'summary' =>
+                        $summary,
+
+                    'dispositionPctSummary' =>
+                        $dispositionPctSummary,
+
+                    'conferenceSummary' =>
+                        $conferenceSummary,
+
+                    'selectedSeado' =>
+                        $selectedSeado,
+                ]
+            );
+        }
+
 
     /**
      * Export the currently filtered report.
@@ -839,25 +1247,35 @@ $dispositionSummary = [
                         'Date Assigned to Interviewer',
                         'Date of Interview',
 
+                        'PCT Stage 1 Status',
+                        'PCT Stage 1 Days',
+                        'PCT Stage 1 Deadline',
+
+                        'PCT Stage 2 Status',
+                        'PCT Stage 2 Days',
+                        'PCT Stage 2 Deadline',
+
                         'SEADO',
                         'Date Assigned to SEADO',
+
                         'Initial Conference',
+                        'Second Conference',
 
                         'Disposition Status',
-                        'Disposition Mode',
+                        'Source Disposition Mode',
                         'Date Disposed',
+
+                        'Disposition PCT Status',
+                        'Disposition PCT Days',
+                        'Disposition PCT Deadline',
+                        'Disposition PCT Remaining Days',
+                        'Disposition PCT Overdue Days',
+
+                        'Total Processing Days',
 
                         'Workers Involved',
                         'Workers Benefited',
                         'Monetary Benefit',
-
-                        'PCT Stage 1 Status',
-                        'PCT Stage 1 Days',
-
-                        'PCT Stage 2 Status',
-                        'PCT Stage 2 Days',
-
-                        'Total Processing Days',
                     ]
                 );
 
@@ -870,6 +1288,26 @@ $dispositionSummary = [
                             $rfa
                         );
 
+                    $stageOne =
+                        $evaluation[
+                            'stage_one'
+                        ];
+
+                    $stageTwo =
+                        $evaluation[
+                            'stage_two'
+                        ];
+
+                    $dispositionPct =
+                        $evaluation[
+                            'disposition_pct'
+                        ];
+
+                    $totalProcessing =
+                        $evaluation[
+                            'total_processing'
+                        ];
+
                     fputcsv(
                         $handle,
                         [
@@ -881,9 +1319,7 @@ $dispositionSummary = [
                             $rfa->responding_party,
 
                             $rfa->date_filed
-                                ?->format(
-                                    'Y-m-d'
-                                ),
+                                ?->format('Y-m-d'),
 
                             $rfa->source_case_status,
                             $rfa->status,
@@ -895,64 +1331,88 @@ $dispositionSummary = [
 
                             $rfa
                                 ->date_assigned_interviewer
-                                ?->format(
-                                    'Y-m-d'
-                                ),
+                                ?->format('Y-m-d'),
 
-                            $rfa->date_interview
-                                ?->format(
-                                    'Y-m-d'
-                                ),
+                            $rfa
+                                ->date_interview
+                                ?->format('Y-m-d'),
+
+                            $this->pctLabel(
+                                $stageOne
+                            ),
+
+                            $stageOne[
+                                'days'
+                            ],
+
+                            $stageOne[
+                                'deadline'
+                            ]
+                                ?->format('Y-m-d'),
+
+                            $this->pctLabel(
+                                $stageTwo
+                            ),
+
+                            $stageTwo[
+                                'days'
+                            ],
+
+                            $stageTwo[
+                                'deadline'
+                            ]
+                                ?->format('Y-m-d'),
 
                             $rfa->seado_name,
 
                             $rfa
                                 ->date_assigned_seado
-                                ?->format(
-                                    'Y-m-d'
-                                ),
+                                ?->format('Y-m-d'),
 
                             $rfa
                                 ->date_initial_conference
-                                ?->format(
-                                    'Y-m-d'
-                                ),
+                                ?->format('Y-m-d'),
+
+                            $rfa
+                                ->date_second_conference
+                                ?->format('Y-m-d'),
 
                             $rfa->disposition_status,
                             $rfa->disposition_mode,
 
-                            $rfa->date_disposed
-                                ?->format(
-                                    'Y-m-d'
-                                ),
+                            $rfa
+                                ->date_disposed
+                                ?->format('Y-m-d'),
+
+                            $dispositionPct[
+                                'status_label'
+                            ]
+                                ?? 'Unavailable',
+
+                            $dispositionPct[
+                                'days'
+                            ],
+
+                            $dispositionPct[
+                                'deadline'
+                            ]
+                                ?->format('Y-m-d'),
+
+                            $dispositionPct[
+                                'remaining_days'
+                            ],
+
+                            $dispositionPct[
+                                'overdue_days'
+                            ],
+
+                            $totalProcessing[
+                                'days'
+                            ],
 
                             $rfa->workers_involved,
                             $rfa->workers_benefited,
                             $rfa->monetary_benefit,
-
-                            $this->pctLabel(
-                                $evaluation[
-                                    'stage_one'
-                                ]
-                            ),
-
-                            $evaluation[
-                                'stage_one'
-                            ]['days'],
-
-                            $this->pctLabel(
-                                $evaluation[
-                                    'stage_two'
-                                ]
-                            ),
-
-                            $evaluation[
-                                'stage_two'
-                            ]['days'],
-
-                            $evaluation[
-                                'total_processing'
-                            ]['days'],
                         ]
                     );
                 }
@@ -1270,6 +1730,356 @@ $dispositionSummary = [
             'compliance_rate' => null,
         ];
     }
+    private function emptySeadoCheckpointSummary(): array
+{
+    return [
+        /*
+        |--------------------------------------------------------------------------
+        | Active checkpoint states
+        |--------------------------------------------------------------------------
+        */
+
+        'active' => 0,
+
+        'active_within' => 0,
+        'active_nearing' => 0,
+        'active_on' => 0,
+        'active_beyond' => 0,
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Historical completed states
+        |--------------------------------------------------------------------------
+        */
+
+        'completed' => 0,
+
+        'within' => 0,
+        'nearing' => 0,
+        'on' => 0,
+        'beyond' => 0,
+
+        'compliant' => 0,
+
+        'indeterminate' => 0,
+
+        'compliance_rate' => null,
+    ];
+}
+
+private function addSeadoCheckpointResult(
+    array &$summary,
+    array $checkpoint
+): void {
+    $state =
+        $checkpoint['state']
+        ?? null;
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Active checkpoint
+    |--------------------------------------------------------------------------
+    */
+
+    if ($state === 'active') {
+        $summary['active']++;
+
+        $classification =
+            $checkpoint[
+                'classification_key'
+            ]
+            ?? null;
+
+        $activeKey =
+            $classification
+                ? 'active_'
+                    .$classification
+                : null;
+
+        if (
+            $activeKey
+            &&
+            array_key_exists(
+                $activeKey,
+                $summary
+            )
+        ) {
+            $summary[$activeKey]++;
+        }
+
+        return;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Historical completed checkpoint
+    |--------------------------------------------------------------------------
+    */
+
+    if ($state === 'completed') {
+        $summary['completed']++;
+
+        $classification =
+            $checkpoint[
+                'classification_key'
+            ]
+            ?? null;
+
+        if (
+            $classification
+            &&
+            array_key_exists(
+                $classification,
+                $summary
+            )
+        ) {
+            $summary[
+                $classification
+            ]++;
+        }
+
+        /*
+         * Within, Nearing and On PCT are
+         * all compliant because they are
+         * completed within the 3-day limit.
+         */
+
+        if (
+            in_array(
+                $classification,
+                [
+                    'within',
+                    'nearing',
+                    'on',
+                ],
+                true
+            )
+        ) {
+            $summary['compliant']++;
+        }
+
+        return;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Incomplete / invalid historical information
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        in_array(
+            $state,
+            [
+                'missing_start',
+                'missing_end',
+                'invalid',
+            ],
+            true
+        )
+    ) {
+        $summary[
+            'indeterminate'
+        ]++;
+    }
+}
+
+private function finalizeSeadoCheckpointSummary(
+    array $summary
+): array {
+    if (
+        $summary['completed']
+        > 0
+    ) {
+        $summary[
+            'compliance_rate'
+        ] = round(
+            (
+                $summary[
+                    'compliant'
+                ]
+                /
+                $summary[
+                    'completed'
+                ]
+            ) * 100,
+            1
+        );
+    }
+
+    return $summary;
+}
+
+private function emptySeadoDispositionPctSummary(): array
+{
+    return [
+        /*
+        |--------------------------------------------------------------------------
+        | Active / undisposed
+        |--------------------------------------------------------------------------
+        */
+
+        'active_total' => 0,
+
+        'active_within' => 0,
+        'due_today' => 0,
+        'active_beyond' => 0,
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Completed / disposed
+        |--------------------------------------------------------------------------
+        */
+
+        'completed' => 0,
+
+        'disposed_within' => 0,
+        'disposed_beyond' => 0,
+
+        'compliant' => 0,
+
+        /*
+        |--------------------------------------------------------------------------
+        | Data quality
+        |--------------------------------------------------------------------------
+        */
+
+        'indeterminate' => 0,
+
+        'compliance_rate' => null,
+    ];
+}
+
+private function addSeadoDispositionPctResult(
+    array &$summary,
+    array $pct
+): void {
+    $state =
+        $pct['state']
+        ?? null;
+
+    $status =
+        $pct['status_key']
+        ?? null;
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Active / undisposed RFA
+    |--------------------------------------------------------------------------
+    */
+
+    if ($state === 'active') {
+        $summary[
+            'active_total'
+        ]++;
+
+        if (
+            in_array(
+                $status,
+                [
+                    'active_within',
+                    'due_today',
+                    'active_beyond',
+                ],
+                true
+            )
+        ) {
+            $summary[$status]++;
+        }
+
+        return;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Completed / disposed RFA
+    |--------------------------------------------------------------------------
+    */
+
+    if ($state === 'completed') {
+        $summary['completed']++;
+
+        if (
+            $status
+            === 'disposed_within'
+        ) {
+            $summary[
+                'disposed_within'
+            ]++;
+
+            $summary[
+                'compliant'
+            ]++;
+        }
+
+        if (
+            $status
+            === 'disposed_beyond'
+        ) {
+            $summary[
+                'disposed_beyond'
+            ]++;
+        }
+
+        return;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Missing / invalid data
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        in_array(
+            $state,
+            [
+                'missing_start',
+                'missing_end',
+                'invalid',
+            ],
+            true
+        )
+    ) {
+        $summary[
+            'indeterminate'
+        ]++;
+    }
+}
+
+private function finalizeSeadoDispositionPctSummary(
+    array $summary
+): array {
+    if (
+        $summary['completed']
+        > 0
+    ) {
+        $summary[
+            'compliance_rate'
+        ] = round(
+            (
+                $summary[
+                    'disposed_within'
+                ]
+                /
+                $summary[
+                    'completed'
+                ]
+            ) * 100,
+            1
+        );
+    }
+
+    return $summary;
+}
 
     private function addActivePct(
         array &$summary,
