@@ -61,6 +61,11 @@ Route::get(
 )->name('reports.export');
 
 Route::get(
+    '/reports/print',
+    [ReportController::class, 'print']
+)->name('reports.print');
+
+Route::get(
     '/pct-process',
     [PctProcessController::class, 'index']
 )->name('pct-process');
