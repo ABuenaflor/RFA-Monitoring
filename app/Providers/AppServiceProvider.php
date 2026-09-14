@@ -3,9 +3,15 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Observers\AuditableObserver;
+use App\Services\AuditLogger;
 use App\Support\Permissions;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -28,6 +34,65 @@ class AppServiceProvider extends ServiceProvider
         $this->registerGates();
 
         $this->registerRateLimiters();
+
+        $this->registerAuditTrail();
+    }
+
+    /**
+     * Watch the models and authentication events that the audit trail covers.
+     */
+    private function registerAuditTrail(): void
+    {
+        foreach (AuditableObserver::auditedModels() as $model) {
+            $model::observe(AuditableObserver::class);
+        }
+
+        Event::listen(
+            Login::class,
+            function (Login $event): void {
+                app(AuditLogger::class)->record(
+                    event: 'login',
+                    subject: $event->user,
+                    recordLabel: $event->user->email,
+                    summary: 'Signed in',
+                    actor: $event->user
+                );
+            }
+        );
+
+        Event::listen(
+            Logout::class,
+            function (Logout $event): void {
+                if ($event->user === null) {
+                    return;
+                }
+
+                app(AuditLogger::class)->record(
+                    event: 'logout',
+                    subject: $event->user,
+                    recordLabel: $event->user->email,
+                    summary: 'Signed out',
+                    actor: $event->user
+                );
+            }
+        );
+
+        Event::listen(
+            Failed::class,
+            function (Failed $event): void {
+                app(AuditLogger::class)->record(
+                    event: 'login_failed',
+
+                    subject: $event->user instanceof User
+                        ? $event->user
+                        : null,
+
+                    recordLabel: (string) ($event->credentials['email'] ?? 'unknown'),
+
+                    summary: 'Failed sign-in attempt'
+                );
+            }
+        );
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Rfa;
 use App\Models\User;
+use App\Services\NotificationService;
 use App\Services\PctService;
 use App\Services\RfaWorkflowService;
 use App\Support\Workflow;
@@ -16,7 +17,8 @@ use Illuminate\View\View;
 class RfaCaseController extends Controller
 {
     public function __construct(
-        private readonly RfaWorkflowService $workflow
+        private readonly RfaWorkflowService $workflow,
+        private readonly NotificationService $notifications
     ) {
     }
 
@@ -201,6 +203,10 @@ class RfaCaseController extends Controller
 
         $this->guardChronology($rfa, $data);
 
+        $previousInterviewer = $rfa->interviewer_id;
+
+        $previousSeado = $rfa->seado_id;
+
         $this->workflow->apply(
             $rfa,
             $data,
@@ -209,10 +215,52 @@ class RfaCaseController extends Controller
             'Assignment updated'
         );
 
+        $this->announceAssignment(
+            $rfa,
+            $previousInterviewer,
+            $previousSeado
+        );
+
         return $this->back(
             $rfa,
             'Assignment saved.'
         );
+    }
+
+    /**
+     * Tell an officer when a case has just been handed to them.
+     *
+     * Only a change of account notifies — re-saving the same assignment does
+     * not put the case back in their queue.
+     */
+    private function announceAssignment(
+        Rfa $rfa,
+        ?int $previousInterviewer,
+        ?int $previousSeado
+    ): void {
+        foreach ([
+            ['id' => $rfa->interviewer_id, 'was' => $previousInterviewer, 'role' => 'Interviewer'],
+            ['id' => $rfa->seado_id, 'was' => $previousSeado, 'role' => 'SEADO'],
+        ] as $assignment) {
+            if (
+                $assignment['id'] === null
+                || $assignment['id'] === $assignment['was']
+            ) {
+                continue;
+            }
+
+            $recipient = User::query()->find($assignment['id']);
+
+            if ($recipient === null || ! $recipient->isActive()) {
+                continue;
+            }
+
+            $this->notifications->notifyAssignment(
+                $recipient,
+                $rfa,
+                $assignment['role']
+            );
+        }
     }
 
 

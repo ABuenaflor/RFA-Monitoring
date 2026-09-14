@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\PctProcessController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RfaCaseController;
@@ -335,6 +336,49 @@ Route::middleware('auth')->group(function () {
                 '/{role}',
                 [RoleController::class, 'destroy']
             )->name('destroy');
+
+        });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Notifications & Audit
+    |--------------------------------------------------------------------------
+    |
+    | The page itself needs notifications.view. The audit trail section inside
+    | it is additionally gated on audit.view by the controller.
+    |
+    */
+
+    Route::prefix('operations')
+        ->name('operations.')
+        ->middleware('can:notifications.view')
+        ->group(function () {
+
+            Route::get(
+                '/',
+                [OperationsController::class, 'index']
+            )->name('index');
+
+            Route::post(
+                '/notifications/read-all',
+                [OperationsController::class, 'markAllRead']
+            )->name('notifications.read-all');
+
+            Route::post(
+                '/notifications/{notification}/read',
+                [OperationsController::class, 'markRead']
+            )->name('notifications.read');
+
+            Route::delete(
+                '/notifications/{notification}',
+                [OperationsController::class, 'destroy']
+            )->name('notifications.destroy');
+
+            Route::post(
+                '/scan',
+                [OperationsController::class, 'scan']
+            )->name('scan');
 
         });
 
