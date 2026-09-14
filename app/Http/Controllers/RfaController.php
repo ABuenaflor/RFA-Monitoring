@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Rfa;
+use App\Services\SettingsService;
+use App\Support\SystemSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -51,8 +53,11 @@ class RfaController extends Controller
         |--------------------------------------------------------------------------
         */
 
+        $defaultPerPage = (string) app(SettingsService::class)
+            ->get(SystemSettings::LISTING_PER_PAGE);
+
         $perPage = strtolower(
-            $request->string('per_page', '10')->toString()
+            $request->string('per_page', $defaultPerPage)->toString()
         );
 
         if (! in_array(
@@ -60,7 +65,7 @@ class RfaController extends Controller
             ['10', '20', '50', 'all'],
             true
         )) {
-            $perPage = '10';
+            $perPage = $defaultPerPage;
         }
 
         /*

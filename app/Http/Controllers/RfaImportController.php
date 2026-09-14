@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ImportBatch;
 use App\Models\Rfa;
 use App\Services\AuditLogger;
 use Carbon\Carbon;
@@ -350,6 +351,34 @@ class RfaImportController extends Controller
         AuditLogger::resume();
 
         fclose($handle);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Batch register
+        |--------------------------------------------------------------------------
+        |
+        | The records themselves already carry the batch uuid; this stores the
+        | surrounding facts — which file, which user, what the run produced.
+        |
+        */
+
+        ImportBatch::create([
+            'uuid' => $batchUuid,
+
+            'file_name' => $file->getClientOriginalName(),
+
+            'user_id' => $request->user()?->id,
+
+            'rows_processed' => $processed,
+
+            'rows_imported' => $imported,
+
+            'rows_created' => $created,
+
+            'rows_updated' => $updated,
+
+            'duplicates_skipped' => $duplicatesSkipped,
+        ]);
 
         $this->auditLogger->record(
             event: 'import',

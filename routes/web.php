@@ -1,7 +1,10 @@
 <?php
 
 use App\Http\Controllers\Account\ProfileController;
+use App\Http\Controllers\Admin\BackupController;
+use App\Http\Controllers\Admin\GovernanceController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\DashboardController;
@@ -385,17 +388,98 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Administration
+    | Data Governance
     |--------------------------------------------------------------------------
     */
 
-    Route::view('/administration', 'placeholder', [
-        'pageTitle' => 'Administration',
-        'pageDescription' =>
-            'Manage system configuration, settings, logs, backup, and administrative functions.',
-        'phase' => 'Later Phase',
-    ])
+    Route::prefix('admin/governance')
+        ->name('admin.governance.')
         ->middleware('can:governance.view')
+        ->group(function () {
+
+            Route::get(
+                '/',
+                [GovernanceController::class, 'index']
+            )->name('index');
+
+            Route::get(
+                '/export',
+                [GovernanceController::class, 'export']
+            )->name('export');
+
+        });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Database Backups
+    |--------------------------------------------------------------------------
+    */
+
+    Route::prefix('admin/backups')
+        ->name('admin.backups.')
+        ->group(function () {
+
+            Route::get(
+                '/',
+                [BackupController::class, 'index']
+            )
+                ->middleware('can:backup.view')
+                ->name('index');
+
+            Route::middleware('can:backup.manage')->group(function () {
+
+                Route::post(
+                    '/',
+                    [BackupController::class, 'store']
+                )->name('store');
+
+                Route::get(
+                    '/{backup}/download',
+                    [BackupController::class, 'download']
+                )->name('download');
+
+                Route::delete(
+                    '/{backup}',
+                    [BackupController::class, 'destroy']
+                )->name('destroy');
+
+            });
+
+        });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | System Settings
+    |--------------------------------------------------------------------------
+    */
+
+    Route::prefix('admin/settings')
+        ->name('admin.settings.')
+        ->middleware('can:settings.manage')
+        ->group(function () {
+
+            Route::get(
+                '/',
+                [SettingsController::class, 'index']
+            )->name('index');
+
+            Route::put(
+                '/',
+                [SettingsController::class, 'update']
+            )->name('update');
+
+        });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Legacy Administration Link
+    |--------------------------------------------------------------------------
+    */
+
+    Route::redirect('/administration', '/admin/settings')
         ->name('administration');
 
 });

@@ -81,6 +81,13 @@
                 'active' => 'admin.governance.*',
             ],
             [
+                'label' => 'Database Backups',
+                'route' => 'admin.backups.index',
+                'icon' => 'backups',
+                'permission' => Permissions::BACKUP_VIEW,
+                'active' => 'admin.backups.*',
+            ],
+            [
                 'label' => 'Release Readiness',
                 'route' => 'admin.readiness.index',
                 'icon' => 'readiness',
@@ -88,10 +95,11 @@
                 'active' => 'admin.readiness.*',
             ],
             [
-                'label' => 'Administration',
-                'route' => 'administration',
+                'label' => 'System Settings',
+                'route' => 'admin.settings.index',
                 'icon' => 'administration',
                 'permission' => Permissions::SETTINGS_MANAGE,
+                'active' => 'admin.settings.*',
             ],
         ],
 
