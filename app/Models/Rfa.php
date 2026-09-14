@@ -2,10 +2,18 @@
 
 namespace App\Models;
 
+use App\Support\Workflow;
+use Database\Factories\RfaFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Rfa extends Model
 {
+    /** @use HasFactory<RfaFactory> */
+    use HasFactory;
+
     protected $fillable = [
         'reference_no',
 
@@ -94,5 +102,71 @@ class Rfa extends Model
 
             'import_payload' => 'array',
         ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    |
+    | interviewer_id / seado_id link to system users where the case has been
+    | assigned inside the application. Records imported from CSV keep only
+    | the free-text name, so both sides are always kept in step.
+    |
+    */
+
+    public function activities(): HasMany
+    {
+        return $this->hasMany(RfaActivity::class)
+            ->latest('created_at')
+            ->latest('id');
+    }
+
+    public function interviewer(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'interviewer_id'
+        );
+    }
+
+    public function seado(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'seado_id'
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Presentation Helpers
+    |--------------------------------------------------------------------------
+    */
+
+    public function statusLabel(): string
+    {
+        return Workflow::label($this->status);
+    }
+
+    public function bucketLabel(): string
+    {
+        return Workflow::bucketLabel($this->monitoring_bucket);
+    }
+
+    /**
+     * Docket number when one exists, otherwise the internal reference.
+     */
+    public function displayReference(): string
+    {
+        return $this->docket_no
+            ?: (string) $this->reference_no;
+    }
+
+    public function isDisposed(): bool
+    {
+        return $this->monitoring_bucket === Workflow::BUCKET_DISPOSED
+            || $this->status === Workflow::DISPOSED
+            || $this->date_disposed !== null;
     }
 }

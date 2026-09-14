@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PctProcessController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\RfaCaseController;
 use App\Http\Controllers\RfaController;
 use App\Http\Controllers\RfaImportController;
 use Illuminate\Support\Facades\Route;
@@ -128,6 +129,79 @@ Route::middleware('auth')->group(function () {
     )
         ->middleware('can:rfa.view')
         ->name('listing');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Case Management
+    |--------------------------------------------------------------------------
+    |
+    | Each section of a case saves independently, so a permission can be
+    | granted for assignment or disposition without opening the whole record.
+    |
+    */
+
+    Route::prefix('rfas/{rfa}')
+        ->name('rfas.')
+        ->group(function () {
+
+            Route::get(
+                '/',
+                [RfaCaseController::class, 'show']
+            )
+                ->middleware('can:rfa.view')
+                ->name('show');
+
+            Route::put(
+                '/details',
+                [RfaCaseController::class, 'updateDetails']
+            )
+                ->middleware('can:rfa.manage')
+                ->name('details');
+
+            Route::put(
+                '/assignment',
+                [RfaCaseController::class, 'updateAssignment']
+            )
+                ->middleware('can:rfa.assign')
+                ->name('assignment');
+
+            Route::put(
+                '/workflow',
+                [RfaCaseController::class, 'updateWorkflow']
+            )
+                ->middleware('can:rfa.manage')
+                ->name('workflow');
+
+            Route::put(
+                '/conference',
+                [RfaCaseController::class, 'updateConference']
+            )
+                ->middleware('can:rfa.manage')
+                ->name('conference');
+
+            Route::put(
+                '/disposition',
+                [RfaCaseController::class, 'updateDisposition']
+            )
+                ->middleware('can:rfa.dispose')
+                ->name('disposition');
+
+            Route::put(
+                '/reopen',
+                [RfaCaseController::class, 'reopen']
+            )
+                ->middleware('can:rfa.dispose')
+                ->name('reopen');
+
+            Route::post(
+                '/notes',
+                [RfaCaseController::class, 'storeNote']
+            )
+                ->middleware('can:rfa.manage')
+                ->name('notes');
+
+        });
 
 
     /*
