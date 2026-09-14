@@ -3,6 +3,7 @@
 use App\Http\Controllers\Account\ProfileController;
 use App\Http\Controllers\Admin\BackupController;
 use App\Http\Controllers\Admin\GovernanceController;
+use App\Http\Controllers\Admin\ReadinessController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UserController;
@@ -469,6 +470,40 @@ Route::middleware('auth')->group(function () {
                 '/',
                 [SettingsController::class, 'update']
             )->name('update');
+
+        });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Release Readiness
+    |--------------------------------------------------------------------------
+    */
+
+    Route::prefix('admin/readiness')
+        ->name('admin.readiness.')
+        ->group(function () {
+
+            Route::get(
+                '/',
+                [ReadinessController::class, 'index']
+            )
+                ->middleware('can:readiness.view')
+                ->name('index');
+
+            Route::middleware('can:readiness.manage')->group(function () {
+
+                Route::post(
+                    '/results',
+                    [ReadinessController::class, 'recordResult']
+                )->name('results');
+
+                Route::post(
+                    '/signoff',
+                    [ReadinessController::class, 'signOff']
+                )->name('signoff');
+
+            });
 
         });
 
