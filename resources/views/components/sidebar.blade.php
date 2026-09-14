@@ -1,3 +1,105 @@
+@php
+
+    use App\Support\Permissions;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Navigation Definition
+    |--------------------------------------------------------------------------
+    |
+    | Each item renders only when its route exists AND the signed-in user
+    | holds the matching permission. Hiding a link is a convenience only —
+    | every route is independently guarded by the same gate.
+    |
+    */
+
+    $navigation = [
+
+        'Main Menu' => [
+            [
+                'label' => 'Dashboard',
+                'route' => 'dashboard',
+                'icon' => 'dashboard',
+                'permission' => Permissions::DASHBOARD_VIEW,
+            ],
+            [
+                'label' => 'Listing',
+                'route' => 'listing',
+                'icon' => 'listing',
+                'permission' => Permissions::RFA_VIEW,
+            ],
+            [
+                'label' => 'Reports',
+                'route' => 'reports',
+                'icon' => 'reports',
+                'permission' => Permissions::REPORTS_VIEW,
+            ],
+            [
+                'label' => 'PCT Process',
+                'route' => 'pct-process',
+                'icon' => 'pct',
+                'permission' => Permissions::PCT_VIEW,
+            ],
+        ],
+
+        'Operations' => [
+            [
+                'label' => 'Notifications & Audit',
+                'route' => 'operations.index',
+                'icon' => 'operations',
+                'permission' => Permissions::NOTIFICATIONS_VIEW,
+                'active' => 'operations.*',
+            ],
+            [
+                'label' => 'CSV Import',
+                'route' => 'imports.index',
+                'icon' => 'imports',
+                'permission' => Permissions::IMPORT_MANAGE,
+            ],
+        ],
+
+        'Administration' => [
+            [
+                'label' => 'Users & Access',
+                'route' => 'admin.access.index',
+                'icon' => 'users',
+                'permission' => Permissions::USERS_VIEW,
+                'active' => 'admin.access.*',
+            ],
+            [
+                'label' => 'Roles & Permissions',
+                'route' => 'admin.roles.index',
+                'icon' => 'roles',
+                'permission' => Permissions::ROLES_MANAGE,
+                'active' => 'admin.roles.*',
+            ],
+            [
+                'label' => 'Data Governance',
+                'route' => 'admin.governance.index',
+                'icon' => 'governance',
+                'permission' => Permissions::GOVERNANCE_VIEW,
+                'active' => 'admin.governance.*',
+            ],
+            [
+                'label' => 'Release Readiness',
+                'route' => 'admin.readiness.index',
+                'icon' => 'readiness',
+                'permission' => Permissions::READINESS_VIEW,
+                'active' => 'admin.readiness.*',
+            ],
+            [
+                'label' => 'Administration',
+                'route' => 'administration',
+                'icon' => 'administration',
+                'permission' => Permissions::SETTINGS_MANAGE,
+            ],
+        ],
+
+    ];
+
+@endphp
+
+
 <aside
     class="fixed inset-y-0 left-0 z-50
            flex w-72 flex-col
@@ -126,457 +228,93 @@
                px-3 py-5"
     >
 
-        {{-- MENU LABEL --}}
+        @foreach ($navigation as $groupLabel => $items)
 
-        <p
-            x-cloak
-            x-show="sidebarExpanded || mobileSidebarOpen"
-            class="mb-3 px-3
-                   text-[10px] font-bold
-                   uppercase tracking-[0.22em]
-                   text-slate-500"
-        >
-            Main Menu
-        </p>
+            @php
 
+                $visible = collect($items)
+                    ->filter(
+                        fn ($item) =>
+                            \Illuminate\Support\Facades\Route::has($item['route'])
+                            && auth()->check()
+                            && auth()->user()->hasPermission($item['permission'])
+                    );
 
-        <div class="space-y-1">
+            @endphp
 
 
-            {{-- ================================================= --}}
-            {{-- DASHBOARD --}}
-            {{-- ================================================= --}}
+            @if ($visible->isNotEmpty())
 
-            <a
-                href="{{ route('dashboard') }}"
-                title="Dashboard"
-                @click="mobileSidebarOpen = false"
+                {{-- GROUP LABEL --}}
 
-                @class([
-                    'flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all duration-200',
-
-                    'bg-blue-600 text-white shadow-lg shadow-blue-950/30'
-                        => request()->routeIs('dashboard'),
-
-                    'text-slate-400 hover:bg-slate-900 hover:text-white'
-                        => !request()->routeIs('dashboard'),
-                ])
-
-                :class="
-                    !sidebarExpanded
-                        ? 'lg:justify-center'
-                        : ''
-                "
-            >
-
-                <svg
-                    class="h-5 w-5 shrink-0"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                >
-
-                    <rect
-                        x="3"
-                        y="3"
-                        width="7"
-                        height="7"
-                        rx="1"
-                    />
-
-                    <rect
-                        x="14"
-                        y="3"
-                        width="7"
-                        height="7"
-                        rx="1"
-                    />
-
-                    <rect
-                        x="3"
-                        y="14"
-                        width="7"
-                        height="7"
-                        rx="1"
-                    />
-
-                    <rect
-                        x="14"
-                        y="14"
-                        width="7"
-                        height="7"
-                        rx="1"
-                    />
-
-                </svg>
-
-
-                <span
+                <p
                     x-cloak
                     x-show="sidebarExpanded || mobileSidebarOpen"
-                    x-transition.opacity
-                    class="whitespace-nowrap"
+                    @class([
+                        'mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500',
+                        'mt-7' => ! $loop->first,
+                    ])
                 >
-                    Dashboard
-                </span>
-
-            </a>
-
-
-            {{-- ================================================= --}}
-            {{-- LISTING --}}
-            {{-- ================================================= --}}
-
-            <a
-                href="{{ route('listing') }}"
-                title="Listing"
-                @click="mobileSidebarOpen = false"
-
-                @class([
-                    'flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all duration-200',
-
-                    'bg-blue-600 text-white shadow-lg shadow-blue-950/30'
-                        => request()->routeIs('listing'),
+                    {{ $groupLabel }}
+                </p>
 
-                    'text-slate-400 hover:bg-slate-900 hover:text-white'
-                        => !request()->routeIs('listing'),
-                ])
 
-                :class="
-                    !sidebarExpanded
-                        ? 'lg:justify-center'
-                        : ''
-                "
-            >
-
-                <svg
-                    class="h-5 w-5 shrink-0"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                >
+                <div class="space-y-1">
 
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M9 6h11M9 12h11M9 18h11"
-                    />
-
-                    <circle cx="4" cy="6" r="1" />
-                    <circle cx="4" cy="12" r="1" />
-                    <circle cx="4" cy="18" r="1" />
-
-                </svg>
-
-
-                <span
-                    x-cloak
-                    x-show="sidebarExpanded || mobileSidebarOpen"
-                    x-transition.opacity
-                    class="whitespace-nowrap"
-                >
-                    Listing
-                </span>
-
-            </a>
-
-
-            {{-- ================================================= --}}
-            {{-- REPORTS --}}
-            {{-- ================================================= --}}
-
-            <a
-                href="{{ route('reports') }}"
-                title="Reports"
-                @click="mobileSidebarOpen = false"
-
-                @class([
-                    'flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all duration-200',
-
-                    'bg-blue-600 text-white shadow-lg shadow-blue-950/30'
-                        => request()->routeIs('reports'),
-
-                    'text-slate-400 hover:bg-slate-900 hover:text-white'
-                        => !request()->routeIs('reports'),
-                ])
-
-                :class="
-                    !sidebarExpanded
-                        ? 'lg:justify-center'
-                        : ''
-                "
-            >
-
-                <svg
-                    class="h-5 w-5 shrink-0"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                >
-
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M5 20V10M12 20V4M19 20v-7"
-                    />
-
-                </svg>
-
-
-                <span
-                    x-cloak
-                    x-show="sidebarExpanded || mobileSidebarOpen"
-                    x-transition.opacity
-                    class="whitespace-nowrap"
-                >
-                    Reports
-                </span>
-
-            </a>
-
-
-            {{-- ================================================= --}}
-            {{-- PCT PROCESS --}}
-            {{-- ================================================= --}}
-
-            <a
-                href="{{ route('pct-process') }}"
-                title="PCT Process"
-                @click="mobileSidebarOpen = false"
-
-                @class([
-                    'flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all duration-200',
-
-                    'bg-blue-600 text-white shadow-lg shadow-blue-950/30'
-                        => request()->routeIs('pct-process'),
-
-                    'text-slate-400 hover:bg-slate-900 hover:text-white'
-                        => !request()->routeIs('pct-process'),
-                ])
-
-                :class="
-                    !sidebarExpanded
-                        ? 'lg:justify-center'
-                        : ''
-                "
-            >
-
-                <svg
-                    class="h-5 w-5 shrink-0"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                >
-
-                    <circle
-                        cx="12"
-                        cy="12"
-                        r="9"
-                    />
-
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M12 7v5l3 2"
-                    />
-
-                </svg>
-
-
-                <span
-                    x-cloak
-                    x-show="sidebarExpanded || mobileSidebarOpen"
-                    x-transition.opacity
-                    class="whitespace-nowrap"
-                >
-                    PCT Process
-                </span>
-
-            </a>
-
-
-            {{-- ================================================= --}}
-            {{-- USERS --}}
-            {{-- ================================================= --}}
-
-            <a
-                href="{{ route('users') }}"
-                title="Users"
-                @click="mobileSidebarOpen = false"
-
-                @class([
-                    'flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all duration-200',
-
-                    'bg-blue-600 text-white shadow-lg shadow-blue-950/30'
-                        => request()->routeIs('users'),
-
-                    'text-slate-400 hover:bg-slate-900 hover:text-white'
-                        => !request()->routeIs('users'),
-                ])
-
-                :class="
-                    !sidebarExpanded
-                        ? 'lg:justify-center'
-                        : ''
-                "
-            >
-
-                <svg
-                    class="h-5 w-5 shrink-0"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                >
-
-                    <circle
-                        cx="9"
-                        cy="8"
-                        r="4"
-                    />
-
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"
-                    />
-
-                    <path
-                        stroke-linecap="round"
-                        d="M17 11a3 3 0 1 0 0-6"
-                    />
-
-                    <path
-                        stroke-linecap="round"
-                        d="M18 14c2.2.5 3 2.2 3 4"
-                    />
-
-                </svg>
-
-
-                <span
-                    x-cloak
-                    x-show="sidebarExpanded || mobileSidebarOpen"
-                    x-transition.opacity
-                    class="whitespace-nowrap"
-                >
-                    Users
-                </span>
-
-            </a>
-
-
-            {{-- ================================================= --}}
-            {{-- ADMINISTRATION --}}
-            {{-- ================================================= --}}
-
-            <a
-                href="{{ route('administration') }}"
-                title="Administration"
-                @click="mobileSidebarOpen = false"
-
-                @class([
-                    'flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all duration-200',
-
-                    'bg-blue-600 text-white shadow-lg shadow-blue-950/30'
-                        => request()->routeIs('administration'),
-
-                    'text-slate-400 hover:bg-slate-900 hover:text-white'
-                        => !request()->routeIs('administration'),
-                ])
-
-                :class="
-                    !sidebarExpanded
-                        ? 'lg:justify-center'
-                        : ''
-                "
-            >
-
-                <svg
-                    class="h-5 w-5 shrink-0"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                >
-
-                    <circle
-                        cx="12"
-                        cy="12"
-                        r="3"
-                    />
-
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="
-                            M19.4 15
-                            a1.7 1.7 0 0 0 .34 1.88
-                            l.06.06
-                            a2 2 0 1 1-2.83 2.83
-                            l-.06-.06
-                            A1.7 1.7 0 0 0 15 19.4
-                            a1.7 1.7 0 0 0-1 .6
-                            V20
-                            a2 2 0 1 1-4 0
-                            v-.09
-                            a1.7 1.7 0 0 0-1-.51
-                            1.7 1.7 0 0 0-1.88.34
-                            l-.06.06
-                            a2 2 0 1 1-2.83-2.83
-                            l.06-.06
-                            A1.7 1.7 0 0 0 4.6 15
-                            a1.7 1.7 0 0 0-.6-1
-                            H4
-                            a2 2 0 1 1 0-4
-                            h.09
-                            a1.7 1.7 0 0 0 .51-1
-                            1.7 1.7 0 0 0-.34-1.88
-                            l-.06-.06
-                            a2 2 0 1 1 2.83-2.83
-                            l.06.06
-                            A1.7 1.7 0 0 0 9 4.6
-                            a1.7 1.7 0 0 0 1-.6
-                            V4
-                            a2 2 0 1 1 4 0
-                            v.09
-                            a1.7 1.7 0 0 0 1 .51
-                            1.7 1.7 0 0 0 1.88-.34
-                            l.06-.06
-                            a2 2 0 1 1 2.83 2.83
-                            l-.06.06
-                            A1.7 1.7 0 0 0 19.4 9
-                            c.14.36.34.7.6 1
-                            H20
-                            a2 2 0 1 1 0 4
-                            h-.09
-                            c-.26.3-.46.64-.51 1
-                        "
-                    />
-
-                </svg>
-
-
-                <span
-                    x-cloak
-                    x-show="sidebarExpanded || mobileSidebarOpen"
-                    x-transition.opacity
-                    class="whitespace-nowrap"
-                >
-                    Administration
-                </span>
-
-            </a>
-
-        </div>
+                    @foreach ($visible as $item)
+
+                        @php
+                            $isActive = request()->routeIs(
+                                $item['active'] ?? $item['route']
+                            );
+                        @endphp
+
+                        <a
+                            href="{{ route($item['route']) }}"
+                            title="{{ $item['label'] }}"
+                            @click="mobileSidebarOpen = false"
+
+                            @class([
+                                'flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all duration-200',
+
+                                'bg-blue-600 text-white shadow-lg shadow-blue-950/30'
+                                    => $isActive,
+
+                                'text-slate-400 hover:bg-slate-900 hover:text-white'
+                                    => ! $isActive,
+                            ])
+
+                            :class="
+                                !sidebarExpanded
+                                    ? 'lg:justify-center'
+                                    : ''
+                            "
+                        >
+
+                            @include('components.icons.' . $item['icon'])
+
+                            <span
+                                x-cloak
+                                x-show="sidebarExpanded || mobileSidebarOpen"
+                                x-transition.opacity
+                                class="whitespace-nowrap"
+                            >
+                                {{ $item['label'] }}
+                            </span>
+
+                        </a>
+
+                    @endforeach
+
+                </div>
+
+            @endif
+
+        @endforeach
 
 
         {{-- ========================================================= --}}
-        {{-- FOOTER --}}
+        {{-- SIGNED-IN ACCOUNT --}}
         {{-- ========================================================= --}}
 
         <div
@@ -585,32 +323,99 @@
             class="mt-auto pt-8"
         >
 
+            @auth
+
+                <div
+                    class="rounded-xl
+                           border border-slate-800
+                           bg-slate-900 p-4"
+                >
+
+                    <p
+                        class="text-[10px] font-bold
+                               uppercase tracking-[0.18em]
+                               text-slate-500"
+                    >
+                        Signed In
+                    </p>
+
+                    <p
+                        class="mt-2 truncate text-sm
+                               font-semibold text-slate-200"
+                    >
+                        {{ auth()->user()->name }}
+                    </p>
+
+                    <p
+                        class="mt-1 truncate text-xs
+                               text-slate-500"
+                    >
+                        {{ auth()->user()->roleName() }}
+
+                        @if (auth()->user()->office)
+                            &middot; {{ auth()->user()->office }}
+                        @endif
+                    </p>
+
+
+                    <div
+                        class="mt-4 flex items-center gap-2"
+                    >
+
+                        <a
+                            href="{{ route('account.edit') }}"
+                            class="flex-1 rounded-lg
+                                   border border-slate-700
+                                   px-3 py-2
+                                   text-center text-xs
+                                   font-semibold
+                                   text-slate-300
+                                   transition
+                                   hover:bg-slate-800
+                                   hover:text-white"
+                        >
+                            Account
+                        </a>
+
+                        <form
+                            method="POST"
+                            action="{{ route('logout') }}"
+                            class="flex-1"
+                        >
+
+                            @csrf
+
+                            <button
+                                type="submit"
+                                class="w-full rounded-lg
+                                       bg-slate-800 px-3 py-2
+                                       text-xs font-semibold
+                                       text-rose-300
+                                       transition
+                                       hover:bg-rose-900/40
+                                       hover:text-rose-200"
+                            >
+                                Sign Out
+                            </button>
+
+                        </form>
+
+                    </div>
+
+                </div>
+
+            @endauth
+
+
             <div
-                class="rounded-xl
-                       border border-slate-800
-                       bg-slate-900 p-4"
+                class="mt-3 px-1"
             >
 
                 <p
-                    class="text-[10px] font-bold
-                           uppercase tracking-[0.18em]
-                           text-slate-500"
+                    class="text-[10px]
+                           text-slate-600"
                 >
-                    System
-                </p>
-
-                <p
-                    class="mt-2 text-sm
-                           font-semibold text-slate-300"
-                >
-                    RFA Monitoring System
-                </p>
-
-                <p
-                    class="mt-1 text-xs
-                           text-slate-500"
-                >
-                    Version 1.0 Development
+                    RFA Monitoring System &middot; Version 1.0
                 </p>
 
             </div>
