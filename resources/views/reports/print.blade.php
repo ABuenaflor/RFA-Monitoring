@@ -402,15 +402,20 @@
     {{-- REPORT TITLE --}}
     {{-- ========================================================= --}}
 
+    @php
+        $settings = app(\App\Services\SettingsService::class);
+    @endphp
+
+
     <h1 class="report-title">
-        DOLE 5 RFA MONITORING
+        {{ $settings->get(\App\Support\SystemSettings::ORGANIZATION_NAME) }}
         {{ now()->format('Y') }}
     </h1>
 
 
     <div class="report-subtitle">
 
-        Request for Assistance Monitoring Report
+        {{ $settings->get(\App\Support\SystemSettings::ORGANIZATION_UNIT) }}
 
         @if ($selectedSeado !== '')
 
@@ -1274,6 +1279,25 @@
         </tbody>
 
     </table>
+
+
+    {{-- ========================================================= --}}
+    {{-- FOOTER NOTE --}}
+    {{-- ========================================================= --}}
+
+    @php
+        $footerNote = $settings->get(
+            \App\Support\SystemSettings::REPORT_FOOTER_NOTE
+        );
+    @endphp
+
+    @if ($footerNote !== '')
+
+        <div class="report-meta" style="margin-top: 6px;">
+            {{ $footerNote }}
+        </div>
+
+    @endif
 
 
 </body>

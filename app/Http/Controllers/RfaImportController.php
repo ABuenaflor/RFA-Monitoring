@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ImportBatch;
 use App\Models\Rfa;
+use App\Services\AuditLogger;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,6 +16,11 @@ use Throwable;
 
 class RfaImportController extends Controller
 {
+    public function __construct(
+        private readonly AuditLogger $auditLogger
+    ) {
+    }
+
     public function index(Request $request): View
     {
         $batch = $request->query('batch');
@@ -162,6 +169,19 @@ class RfaImportController extends Controller
 
         $seenSourceKeys = [];
 
+        /*
+        |--------------------------------------------------------------------------
+        | Audit trail
+        |--------------------------------------------------------------------------
+        |
+        | A single import touches hundreds of records. Recording each one would
+        | bury the trail, so per-record auditing is paused and one summary
+        | entry is written for the batch instead.
+        |
+        */
+
+        AuditLogger::pause();
+
         DB::beginTransaction();
 
         try {
@@ -309,6 +329,8 @@ class RfaImportController extends Controller
         } catch (Throwable $exception) {
             DB::rollBack();
 
+            AuditLogger::resume();
+
             fclose($handle);
 
             if (
@@ -326,7 +348,53 @@ class RfaImportController extends Controller
             ]);
         }
 
+        AuditLogger::resume();
+
         fclose($handle);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Batch register
+        |--------------------------------------------------------------------------
+        |
+        | The records themselves already carry the batch uuid; this stores the
+        | surrounding facts — which file, which user, what the run produced.
+        |
+        */
+
+        ImportBatch::create([
+            'uuid' => $batchUuid,
+
+            'file_name' => $file->getClientOriginalName(),
+
+            'user_id' => $request->user()?->id,
+
+            'rows_processed' => $processed,
+
+            'rows_imported' => $imported,
+
+            'rows_created' => $created,
+
+            'rows_updated' => $updated,
+
+            'duplicates_skipped' => $duplicatesSkipped,
+        ]);
+
+        $this->auditLogger->record(
+            event: 'import',
+            recordLabel: $file->getClientOriginalName(),
+            summary: "{$imported} records imported "
+                . "({$created} created, {$updated} updated) "
+                . "from {$processed} source rows.",
+            changes: [
+                'batch' => $batchUuid,
+                'processed' => $processed,
+                'imported' => $imported,
+                'created' => $created,
+                'updated' => $updated,
+                'duplicates_skipped' => $duplicatesSkipped,
+            ]
+        );
 
         $message =
             "{$processed} source rows processed. "

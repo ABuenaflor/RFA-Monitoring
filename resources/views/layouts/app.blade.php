@@ -272,6 +272,142 @@
 
                     @yield('page_actions')
 
+
+                    {{-- ACCOUNT MENU --}}
+
+                    @auth
+
+                        <div
+                            x-data="{ open: false }"
+                            @click.outside="open = false"
+                            class="relative"
+                        >
+
+                            <button
+                                type="button"
+                                @click="open = !open"
+                                class="flex items-center gap-2
+                                       rounded-xl
+                                       border border-slate-200
+                                       bg-white
+                                       py-1.5 pl-1.5 pr-3
+                                       text-left shadow-sm
+                                       transition
+                                       hover:bg-slate-50"
+                            >
+
+                                <span
+                                    class="flex h-9 w-9
+                                           items-center justify-center
+                                           rounded-lg
+                                           bg-blue-600
+                                           text-xs font-bold
+                                           text-white"
+                                >
+                                    {{ auth()->user()->initials() }}
+                                </span>
+
+                                <span class="hidden sm:block">
+
+                                    <span
+                                        class="block max-w-[10rem]
+                                               truncate text-sm
+                                               font-semibold
+                                               text-slate-900"
+                                    >
+                                        {{ auth()->user()->name }}
+                                    </span>
+
+                                    <span
+                                        class="block text-[11px]
+                                               font-medium
+                                               text-slate-400"
+                                    >
+                                        {{ auth()->user()->roleName() }}
+                                    </span>
+
+                                </span>
+
+                            </button>
+
+
+                            <div
+                                x-cloak
+                                x-show="open"
+                                x-transition.opacity
+                                class="absolute right-0 z-40
+                                       mt-2 w-60
+                                       overflow-hidden
+                                       rounded-xl
+                                       border border-slate-200
+                                       bg-white
+                                       shadow-lg"
+                            >
+
+                                <div
+                                    class="border-b border-slate-100
+                                           px-4 py-3"
+                                >
+
+                                    <p
+                                        class="truncate text-sm
+                                               font-semibold
+                                               text-slate-900"
+                                    >
+                                        {{ auth()->user()->name }}
+                                    </p>
+
+                                    <p
+                                        class="truncate text-xs
+                                               text-slate-400"
+                                    >
+                                        {{ auth()->user()->email }}
+                                    </p>
+
+                                </div>
+
+
+                                <a
+                                    href="{{ route('account.edit') }}"
+                                    class="block px-4 py-3
+                                           text-sm font-medium
+                                           text-slate-700
+                                           transition
+                                           hover:bg-slate-50"
+                                >
+                                    My Account
+                                </a>
+
+
+                                <form
+                                    method="POST"
+                                    action="{{ route('logout') }}"
+                                >
+
+                                    @csrf
+
+                                    <button
+                                        type="submit"
+                                        class="block w-full
+                                               border-t border-slate-100
+                                               px-4 py-3
+                                               text-left text-sm
+                                               font-semibold
+                                               text-rose-600
+                                               transition
+                                               hover:bg-rose-50"
+                                    >
+                                        Sign Out
+                                    </button>
+
+                                </form>
+
+                            </div>
+
+                        </div>
+
+                    @endauth
+
                 </div>
 
             </div>
@@ -291,7 +427,13 @@
                    lg:py-8"
         >
 
-            @yield('content')
+            <div class="space-y-5">
+
+                <x-flash />
+
+                @yield('content')
+
+            </div>
 
         </main>
 

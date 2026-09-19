@@ -1330,6 +1330,20 @@
                                 Disposition
                             </th>
 
+
+                            {{-- CASE --}}
+
+                            <th
+                                class="px-5 py-3.5
+                                       text-left
+                                       text-xs font-bold
+                                       uppercase
+                                       tracking-wider
+                                       text-slate-500"
+                            >
+                                Case
+                            </th>
+
                         </tr>
 
                     </thead>
@@ -1656,6 +1670,32 @@
     @endif
 
 </td>
+
+
+                                {{-- OPEN CASE --}}
+
+                                <td
+                                    class="whitespace-nowrap
+                                           px-5 py-4"
+                                >
+
+                                    <a
+                                        href="{{ route('rfas.show', $rfa) }}"
+                                        class="inline-flex
+                                               items-center
+                                               rounded-lg
+                                               border border-slate-300
+                                               bg-white
+                                               px-3 py-1.5
+                                               text-xs font-semibold
+                                               text-slate-700
+                                               transition
+                                               hover:bg-slate-50"
+                                    >
+                                        Open
+                                    </a>
+
+                                </td>
 
                             </tr>
 
