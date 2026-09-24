@@ -35,26 +35,11 @@
 | D | Office filter on PCT Process (whole page) | Complete |
 | E | Clickable Within / Nearing / On / Beyond cards on PCT Process | Complete |
 | F | Process Cycle Time page (PCT Process → Process Cycle Time) | Complete |
-| G | Clickable Pending / Ongoing / Disposed cards on the RFA listing | **Remaining** |
-| H | Dashboard line chart: RFAs filed per day, On-site vs Online | **Remaining** |
+| G | Clickable Pending / Ongoing / Disposed cards on the RFA listing and the Dashboard | Complete |
+| H | Dashboard line chart: RFAs filed per day, On-site vs Online, last 5 days | Complete |
 | I | PCT rules replaced by the five named checkpoints | Complete |
 
-### Remaining phases
-
-**G — Clickable listing cards.** On the RFA listing, clicking Pending, Ongoing
-or Disposed shows every RFA with that status. The listing already has a status
-filter with the same values, so each card links to it (keep other filters),
-built the same way as the PCT cards in Phase E. Open question: should the
-dashboard's cards be clickable too?
-
-**H — Dashboard filing chart.** A smooth line chart on the Dashboard showing
-how many RFAs were filed each day (`date_filed`), one line for On-site and one
-for Online (`mode_of_filing`), zero-filled for days with no filings, using the
-Chart.js already on the dashboard. Style: white card, small uppercase label
-over a bold title, curved lines with hollow point markers, light fill under
-one series, legend centred below. Range: 5 days of the current month. Open
-question: near the start of a month (e.g. the 2nd), show only the days so far
-or reach back into the previous month?
+All enhancement phases (A–I) are complete.
 
 Phases 7–11 are implemented, tested and verified against the live database.
 Phase 11 provides the UAT plan and sign-off register; **user acceptance testing
@@ -65,7 +50,7 @@ rather than replacing it.
 
 | Item | Result |
 | --- | --- |
-| Automated tests | 187 passing (2026-09-24) |
+| Automated tests | 198 passing (2026-09-24) |
 | Live records | 534 RFAs in `rfa_monitoring` |
 | Routes reachable | All 17 authenticated screens return 200 for an administrator |
 | Print report | Renders every matching record at exact 13in × 8in |

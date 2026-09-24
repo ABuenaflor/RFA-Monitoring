@@ -96,138 +96,116 @@
     {{-- SUMMARY CARDS --}}
     {{-- ========================================================= --}}
 
+    @php
+        $activeBucket = (string) request('monitoring_bucket', '');
+
+        /*
+        | A card shows its whole group: it keeps sort order and page size
+        | but drops every other filter, so the list matches the card's count.
+        */
+
+        $keep = array_filter(request()->only(['sort', 'direction', 'per_page']));
+
+        $summaryCards = [
+            [
+                'key' => '',
+                'label' => 'Total RFAs',
+                'count' => $summary['total'],
+                'box' => 'border-slate-200 bg-white',
+                'title' => 'text-slate-400',
+                'value' => 'text-slate-950',
+                'ring' => 'ring-slate-400',
+                'hint' => 'View all',
+            ],
+            [
+                'key' => 'pending',
+                'label' => 'Pending',
+                'count' => $summary['pending'],
+                'box' => 'border-amber-200 bg-amber-50',
+                'title' => 'text-amber-600',
+                'value' => 'text-amber-900',
+                'ring' => 'ring-amber-500',
+                'hint' => 'View list',
+            ],
+            [
+                'key' => 'ongoing',
+                'label' => 'Ongoing',
+                'count' => $summary['ongoing'],
+                'box' => 'border-blue-200 bg-blue-50',
+                'title' => 'text-blue-600',
+                'value' => 'text-blue-900',
+                'ring' => 'ring-blue-500',
+                'hint' => 'View list',
+            ],
+            [
+                'key' => 'disposed',
+                'label' => 'Disposed',
+                'count' => $summary['disposed'],
+                'box' => 'border-emerald-200 bg-emerald-50',
+                'title' => 'text-emerald-600',
+                'value' => 'text-emerald-900',
+                'ring' => 'ring-emerald-500',
+                'hint' => 'View list',
+            ],
+        ];
+    @endphp
+
     <section
         class="grid grid-cols-2
                gap-4
                xl:grid-cols-4"
     >
 
-        {{-- TOTAL --}}
+        @foreach ($summaryCards as $card)
 
-        <div
-            class="rounded-2xl
-                   border border-slate-200
-                   bg-white p-5
-                   shadow-sm"
-        >
+            @php
+                $isSelected = $activeBucket === $card['key'];
+            @endphp
 
-            <p
-                class="text-xs font-bold
-                       uppercase
-                       tracking-[0.14em]
-                       text-slate-400"
+            <a
+                href="{{ route('listing', array_filter($keep + ['monitoring_bucket' => $card['key']])) }}#rfa-records"
+                @if ($isSelected) aria-current="true" @endif
+                class="group block rounded-2xl
+                       border {{ $card['box'] }} p-5
+                       shadow-sm transition
+                       hover:-translate-y-0.5
+                       hover:shadow-md
+                       focus:outline-none
+                       focus:ring-4 focus:ring-blue-100
+                       {{ $isSelected ? 'ring-2 ' . $card['ring'] : '' }}"
             >
-                Total RFAs
-            </p>
 
-            <p
-                class="mt-3 text-3xl
-                       font-bold
-                       tracking-tight
-                       text-slate-950"
-            >
-                {{ number_format(
-                    $summary['total']
-                ) }}
-            </p>
+                <p
+                    class="text-xs font-bold
+                           uppercase
+                           tracking-[0.14em]
+                           {{ $card['title'] }}"
+                >
+                    {{ $card['label'] }}
+                </p>
 
-        </div>
+                <p
+                    class="mt-3 text-3xl
+                           font-bold
+                           tracking-tight
+                           {{ $card['value'] }}"
+                >
+                    {{ number_format($card['count']) }}
+                </p>
 
+                <p
+                    class="mt-2 text-xs
+                           font-semibold
+                           {{ $card['title'] }}
+                           opacity-70
+                           group-hover:opacity-100"
+                >
+                    {{ $isSelected ? 'Showing below' : $card['hint'] . ' →' }}
+                </p>
 
-        {{-- PENDING --}}
+            </a>
 
-        <div
-            class="rounded-2xl
-                   border border-amber-200
-                   bg-amber-50 p-5
-                   shadow-sm"
-        >
-
-            <p
-                class="text-xs font-bold
-                       uppercase
-                       tracking-[0.14em]
-                       text-amber-600"
-            >
-                Pending
-            </p>
-
-            <p
-                class="mt-3 text-3xl
-                       font-bold
-                       tracking-tight
-                       text-amber-900"
-            >
-                {{ number_format(
-                    $summary['pending']
-                ) }}
-            </p>
-
-        </div>
-
-
-        {{-- ONGOING --}}
-
-        <div
-            class="rounded-2xl
-                   border border-blue-200
-                   bg-blue-50 p-5
-                   shadow-sm"
-        >
-
-            <p
-                class="text-xs font-bold
-                       uppercase
-                       tracking-[0.14em]
-                       text-blue-600"
-            >
-                Ongoing
-            </p>
-
-            <p
-                class="mt-3 text-3xl
-                       font-bold
-                       tracking-tight
-                       text-blue-900"
-            >
-                {{ number_format(
-                    $summary['ongoing']
-                ) }}
-            </p>
-
-        </div>
-
-
-        {{-- DISPOSED --}}
-
-        <div
-            class="rounded-2xl
-                   border border-emerald-200
-                   bg-emerald-50 p-5
-                   shadow-sm"
-        >
-
-            <p
-                class="text-xs font-bold
-                       uppercase
-                       tracking-[0.14em]
-                       text-emerald-600"
-            >
-                Disposed
-            </p>
-
-            <p
-                class="mt-3 text-3xl
-                       font-bold
-                       tracking-tight
-                       text-emerald-900"
-            >
-                {{ number_format(
-                    $summary['disposed']
-                ) }}
-            </p>
-
-        </div>
+        @endforeach
 
     </section>
 
@@ -930,7 +908,9 @@
     {{-- ========================================================= --}}
 
     <section
-        class="overflow-hidden
+        id="rfa-records"
+        class="scroll-mt-6
+               overflow-hidden
                rounded-2xl
                border border-slate-200
                bg-white shadow-sm"
@@ -966,6 +946,33 @@
                 >
                     RFA Records
                 </h2>
+
+                @if (in_array($activeBucket, ['pending', 'ongoing', 'disposed'], true))
+
+                    <div class="mt-2 flex items-center gap-3 text-sm">
+
+                        <span
+                            class="rounded-full
+                                   bg-slate-100
+                                   px-3 py-1
+                                   font-semibold
+                                   text-slate-700"
+                        >
+                            Showing: {{ ucfirst($activeBucket) }}
+                        </span>
+
+                        <a
+                            href="{{ route('listing', $keep) }}#rfa-records"
+                            class="font-semibold
+                                   text-blue-600
+                                   hover:text-blue-700"
+                        >
+                            Show all
+                        </a>
+
+                    </div>
+
+                @endif
 
             </div>
 
