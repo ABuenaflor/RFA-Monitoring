@@ -35,6 +35,8 @@ class RfaFactory extends Factory
 
             'monitoring_bucket' => Workflow::BUCKET_PENDING,
 
+            'mode_of_filing' => 'online',
+
             'date_filed' => '2026-08-03',
         ];
     }

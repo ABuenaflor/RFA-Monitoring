@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AppNotification;
+use App\Models\PctEmailDelivery;
 use App\Models\Rfa;
 use App\Models\Role;
 use App\Models\User;
@@ -20,11 +21,15 @@ use Illuminate\Support\Collection;
  *  - one aggregate per watcher, counting the cases in breach that nobody
  *    is assigned to — so an unassigned backlog is visible without burying
  *    every supervisor under hundreds of individual alerts
+ *
+ * The PCT scan also hands per-case alerts to PctEmailService, which emails
+ * the assigned officer. Unassigned backlogs stay in-app only.
  */
 class NotificationService
 {
     public function __construct(
-        private readonly PctService $pctService
+        private readonly PctService $pctService,
+        private readonly PctEmailService $pctEmailService
     ) {
     }
 
@@ -91,7 +96,8 @@ class NotificationService
      * Recalculate every PCT notification in the system.
      *
      * Idempotent: running it twice leaves the same queue, and alerts whose
-     * condition has cleared are removed.
+     * condition has cleared are removed. Email alerts are sent once per
+     * case and alert level, so re-running never re-sends them.
      *
      * @return array<string, int>
      */
@@ -101,16 +107,14 @@ class NotificationService
 
         $generated = [];
 
-        $unassigned = [
-            'stage_one' => 0,
-            'stage_two' => 0,
-            'disposition' => 0,
-        ];
+        $unassigned = array_fill_keys(PctService::keys(), 0);
 
         $counts = [
             'cases_scanned' => 0,
             'alerts' => 0,
         ];
+
+        $emailCandidates = [];
 
         Rfa::query()
             ->where('monitoring_bucket', '!=', Workflow::BUCKET_DISPOSED)
@@ -119,12 +123,27 @@ class NotificationService
             ->chunkById(200, function (Collection $rfas) use (
                 &$generated,
                 &$unassigned,
-                &$counts
+                &$counts,
+                &$emailCandidates
             ) {
                 foreach ($rfas as $rfa) {
                     $counts['cases_scanned']++;
 
                     $pct = $this->pctService->evaluate($rfa);
+
+                    foreach ($this->emailAlerts($pct) as $alert) {
+                        $recipient = $this->recipientFor(
+                            $rfa,
+                            $alert['stage']
+                        );
+
+                        if ($recipient !== null) {
+                            $emailCandidates[] = $alert + [
+                                'user' => $recipient,
+                                'rfa' => $rfa,
+                            ];
+                        }
+                    }
 
                     foreach ($this->breaches($pct) as $breach) {
                         $recipient = $this->recipientFor(
@@ -214,7 +233,13 @@ class NotificationService
             ->whereNotIn('id', $generated ?: [0])
             ->delete();
 
-        return $counts;
+        /*
+        |--------------------------------------------------------------------------
+        | Email alerts
+        |--------------------------------------------------------------------------
+        */
+
+        return $counts + $this->pctEmailService->send($emailCandidates);
     }
 
     /**
@@ -257,7 +282,8 @@ class NotificationService
     */
 
     /**
-     * PCT conditions worth alerting on, derived from a PctService result.
+     * Active checkpoints worth alerting on in-app: due today (warning) and
+     * past the limit (critical).
      *
      * @param  array<string, mixed>  $pct
      * @return array<int, array<string, string>>
@@ -266,72 +292,106 @@ class NotificationService
     {
         $breaches = [];
 
-        foreach ([
-            'stage_one' => ['Stage 1 PCT', 'pct_stage_one'],
-            'stage_two' => ['Stage 2 PCT', 'pct_stage_two'],
-        ] as $key => [$label, $category]) {
-            $stage = $pct[$key];
-
-            if ($stage['state'] !== 'active') {
+        foreach ($pct['checkpoints'] as $key => $checkpoint) {
+            if ($checkpoint['state'] !== 'active') {
                 continue;
             }
 
-            if ($stage['classification_key'] === 'on') {
+            $limit = $this->limitPhrase($checkpoint);
+
+            if ($checkpoint['classification_key'] === 'on') {
                 $breaches[] = [
                     'stage' => $key,
-                    'category' => $category,
+                    'category' => $this->categoryFor($key),
                     'severity' => AppNotification::SEVERITY_WARNING,
-                    'title' => $label . ' due today',
-                    'message' => $stage['stage_label']
-                        . ' has reached day ' . $stage['days']
-                        . ' of the 3-day PCT.',
+                    'title' => $checkpoint['stage_label'] . ' due today',
+                    'message' => 'Day ' . $checkpoint['days'] . ' of ' . $limit
+                        . ' — the deadline is today.',
                 ];
 
                 continue;
             }
 
-            if ($stage['classification_key'] === 'beyond') {
+            if ($checkpoint['classification_key'] === 'beyond') {
                 $breaches[] = [
                     'stage' => $key,
-                    'category' => $category,
+                    'category' => $this->categoryFor($key),
                     'severity' => AppNotification::SEVERITY_CRITICAL,
-                    'title' => $label . ' breached',
-                    'message' => $stage['stage_label']
-                        . ' is at day ' . $stage['days']
-                        . ', beyond the 3-day PCT.',
+                    'title' => $checkpoint['stage_label'] . ' breached',
+                    'message' => 'Day ' . $checkpoint['days'] . ', beyond ' . $limit
+                        . ' — overdue by ' . $checkpoint['overdue_days'] . ' day(s).',
                 ];
             }
-        }
-
-        $disposition = $pct['disposition_pct'];
-
-        if ($disposition['status_key'] === 'due_today') {
-            $breaches[] = [
-                'stage' => 'disposition',
-                'category' => 'pct_disposition',
-                'severity' => AppNotification::SEVERITY_WARNING,
-                'title' => '30-day disposition PCT due today',
-                'message' => $disposition['message'],
-            ];
-        }
-
-        if ($disposition['status_key'] === 'active_beyond') {
-            $breaches[] = [
-                'stage' => 'disposition',
-                'category' => 'pct_disposition',
-                'severity' => AppNotification::SEVERITY_CRITICAL,
-                'title' => '30-day disposition PCT breached',
-                'message' => $disposition['message']
-                    . ' Overdue by ' . $disposition['overdue_days'] . ' day(s).',
-            ];
         }
 
         return $breaches;
     }
 
     /**
-     * Stage 1 and Stage 2 belong to the interviewer; disposition belongs to
-     * the SEADO, falling back to the interviewer when no SEADO is assigned.
+     * Active checkpoints worth emailing about.
+     *
+     * Wider than breaches(): the email also warns ahead ("nearing"), so the
+     * officer can act before the deadline.
+     *
+     * @param  array<string, mixed>  $pct
+     * @return array<int, array<string, mixed>>
+     */
+    private function emailAlerts(array $pct): array
+    {
+        $alerts = [];
+
+        foreach ($pct['checkpoints'] as $key => $checkpoint) {
+            if ($checkpoint['state'] !== 'active') {
+                continue;
+            }
+
+            $level = match ($checkpoint['classification_key']) {
+                'nearing' => PctEmailDelivery::LEVEL_NEARING,
+                'on' => PctEmailDelivery::LEVEL_DUE_TODAY,
+                'beyond' => PctEmailDelivery::LEVEL_BREACHED,
+                default => null,
+            };
+
+            if ($level === null) {
+                continue;
+            }
+
+            $alerts[] = [
+                'stage' => $key,
+                'level' => $level,
+                'stage_label' => $checkpoint['stage_label']
+                    . ' (' . $this->limitPhrase($checkpoint) . ')',
+                'level_label' => $this->emailLevelLabel($level),
+                'days' => $checkpoint['days'],
+            ];
+        }
+
+        return $alerts;
+    }
+
+    private function emailLevelLabel(string $level): string
+    {
+        return match ($level) {
+            PctEmailDelivery::LEVEL_NEARING => 'Nearing PCT',
+            PctEmailDelivery::LEVEL_DUE_TODAY => 'Due today',
+            default => 'Beyond PCT',
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $checkpoint
+     */
+    private function limitPhrase(array $checkpoint): string
+    {
+        return $checkpoint['limit_days'] === 0
+            ? 'the same-day PCT'
+            : 'the ' . $checkpoint['limit_days'] . '-day PCT';
+    }
+
+    /**
+     * Checkpoints up to SEADO assignment belong to the interviewer; from
+     * SEADO assignment on they belong to the SEADO. Each falls back to the
+     * other officer when its own is not assigned.
      */
     private function recipientFor(Rfa $rfa, string $stage): ?User
     {
@@ -339,10 +399,12 @@ class NotificationService
 
         $seado = $rfa->seado;
 
-        $candidate = match ($stage) {
-            'disposition' => $seado ?? $interviewer,
-            default => $interviewer ?? $seado,
-        };
+        $candidate = in_array($stage, [
+            PctService::SEADO_CONFERENCE,
+            PctService::CONFERENCE_DISPOSED,
+        ], true)
+            ? $seado ?? $interviewer
+            : $interviewer ?? $seado;
 
         return $candidate?->isActive()
             ? $candidate
@@ -351,20 +413,12 @@ class NotificationService
 
     private function categoryFor(string $stage): string
     {
-        return match ($stage) {
-            'stage_one' => 'pct_stage_one',
-            'stage_two' => 'pct_stage_two',
-            default => 'pct_disposition',
-        };
+        return 'pct_' . $stage;
     }
 
     private function stageLabel(string $stage): string
     {
-        return match ($stage) {
-            'stage_one' => 'the Stage 1 3-day PCT',
-            'stage_two' => 'the Stage 2 3-day PCT',
-            default => 'the 30-day disposition PCT',
-        };
+        return PctService::label($stage);
     }
 
     /**

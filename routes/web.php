@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OperationsController;
+use App\Http\Controllers\PctCycleTimeController;
 use App\Http\Controllers\PctProcessController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RfaCaseController;
@@ -249,6 +250,13 @@ Route::middleware('auth')->group(function () {
     )
         ->middleware('can:pct.view')
         ->name('pct-process');
+
+    Route::get(
+        '/pct-process/cycle-time',
+        [PctCycleTimeController::class, 'index']
+    )
+        ->middleware('can:pct.view')
+        ->name('pct-cycle-time');
 
 
     /*

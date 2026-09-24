@@ -15,6 +15,8 @@
 
 @section('page_actions')
 
+    @can('import.manage')
+
     <a
         href="{{ route('imports.index') }}"
         class="inline-flex items-center gap-2
@@ -61,6 +63,8 @@
         </span>
 
     </a>
+
+    @endcan
 
 @endsection
 

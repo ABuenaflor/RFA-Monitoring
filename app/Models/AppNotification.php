@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\PctService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -67,10 +68,13 @@ class AppNotification extends Model
      */
     public static function categories(): array
     {
-        return [
-            'pct_stage_one' => 'Stage 1 PCT',
-            'pct_stage_two' => 'Stage 2 PCT',
-            'pct_disposition' => '30-Day Disposition PCT',
+        $pct = [];
+
+        foreach (PctService::definitions() as $key => $definition) {
+            $pct['pct_' . $key] = $definition['label'];
+        }
+
+        return $pct + [
             'assignment' => 'Assignment',
             'workflow' => 'Workflow',
             'system' => 'System',

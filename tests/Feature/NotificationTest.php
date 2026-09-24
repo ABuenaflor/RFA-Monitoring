@@ -44,7 +44,7 @@ class NotificationTest extends TestCase
     |--------------------------------------------------------------------------
     */
 
-    public function test_a_breached_stage_one_alerts_the_assigned_interviewer(): void
+    public function test_a_breached_filing_checkpoint_alerts_the_assigned_interviewer(): void
     {
         $rfa = Rfa::factory()->create([
             'date_filed' => now()->subDays(10)->toDateString(),
@@ -56,7 +56,7 @@ class NotificationTest extends TestCase
 
         $notification = AppNotification::query()
             ->where('user_id', $this->interviewer->id)
-            ->where('dedupe_key', "pct:stage_one:{$rfa->id}")
+            ->where('dedupe_key', "pct:filing_assignment:{$rfa->id}")
             ->first();
 
         $this->assertNotNull($notification);
@@ -104,7 +104,7 @@ class NotificationTest extends TestCase
         $this->assertSame(
             1,
             AppNotification::query()
-                ->where('dedupe_key', "pct:stage_one:{$rfa->id}")
+                ->where('dedupe_key', "pct:filing_assignment:{$rfa->id}")
                 ->count()
         );
 
@@ -139,7 +139,7 @@ class NotificationTest extends TestCase
 
         $aggregate = AppNotification::query()
             ->where('user_id', $this->admin->id)
-            ->where('dedupe_key', 'pct:unassigned:stage_one')
+            ->where('dedupe_key', 'pct:unassigned:filing_assignment')
             ->first();
 
         $this->assertNotNull($aggregate);
@@ -181,14 +181,14 @@ class NotificationTest extends TestCase
     public function test_an_escalation_reopens_an_alert_that_was_already_read(): void
     {
         $rfa = Rfa::factory()->create([
-            'date_filed' => now()->subDays(3)->toDateString(),
+            'date_filed' => now()->subDays(2)->toDateString(),
             'interviewer_id' => $this->interviewer->id,
         ]);
 
         $this->scan();
 
         $notification = AppNotification::query()
-            ->where('dedupe_key', "pct:stage_one:{$rfa->id}")
+            ->where('dedupe_key', "pct:filing_assignment:{$rfa->id}")
             ->firstOrFail();
 
         $this->assertSame(

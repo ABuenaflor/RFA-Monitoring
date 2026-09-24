@@ -39,6 +39,16 @@
                 'route' => 'pct-process',
                 'icon' => 'pct',
                 'permission' => Permissions::PCT_VIEW,
+                'children' => [
+                    [
+                        'label' => 'PCT Monitoring',
+                        'route' => 'pct-process',
+                    ],
+                    [
+                        'label' => 'Process Cycle Time',
+                        'route' => 'pct-cycle-time',
+                    ],
+                ],
             ],
         ],
 
@@ -270,6 +280,116 @@
                 <div class="space-y-1">
 
                     @foreach ($visible as $item)
+
+                        @if (! empty($item['children']))
+
+                            @php
+                                $children = collect($item['children'])
+                                    ->filter(fn ($child) => \Illuminate\Support\Facades\Route::has($child['route']));
+
+                                $isActive = $children->contains(
+                                    fn ($child) => request()->routeIs($child['route'])
+                                );
+                            @endphp
+
+                            {{-- Dropdown: opens itself when one of its pages is showing --}}
+
+                            <div x-data="{ open: {{ $isActive ? 'true' : 'false' }} }">
+
+                                <button
+                                    type="button"
+                                    title="{{ $item['label'] }}"
+                                    :aria-expanded="open.toString()"
+                                    @click="
+                                        if (! sidebarExpanded && window.innerWidth >= 1024) {
+                                            toggleDesktopSidebar();
+                                            open = true;
+                                        } else {
+                                            open = ! open;
+                                        }
+                                    "
+                                    @class([
+                                        'flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition-all duration-200',
+
+                                        'bg-blue-600 text-white shadow-lg shadow-blue-950/30'
+                                            => $isActive,
+
+                                        'text-slate-400 hover:bg-slate-900 hover:text-white'
+                                            => ! $isActive,
+                                    ])
+                                    :class="
+                                        !sidebarExpanded
+                                            ? 'lg:justify-center'
+                                            : ''
+                                    "
+                                >
+
+                                    @include('components.icons.' . $item['icon'])
+
+                                    <span
+                                        x-cloak
+                                        x-show="sidebarExpanded || mobileSidebarOpen"
+                                        x-transition.opacity
+                                        class="flex-1 whitespace-nowrap"
+                                    >
+                                        {{ $item['label'] }}
+                                    </span>
+
+                                    <svg
+                                        x-cloak
+                                        x-show="sidebarExpanded || mobileSidebarOpen"
+                                        class="h-4 w-4 shrink-0 transition-transform duration-200"
+                                        :class="open ? 'rotate-180' : ''"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        aria-hidden="true"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="m6 9 6 6 6-6"
+                                        />
+                                    </svg>
+
+                                </button>
+
+                                <div
+                                    x-cloak
+                                    x-show="open && (sidebarExpanded || mobileSidebarOpen)"
+                                    x-transition.opacity
+                                    class="mt-1 space-y-1 border-l border-slate-800 ml-6 pl-3"
+                                >
+
+                                    @foreach ($children as $child)
+
+                                        @php
+                                            $childActive = request()->routeIs($child['route']);
+                                        @endphp
+
+                                        <a
+                                            href="{{ route($child['route']) }}"
+                                            @click="mobileSidebarOpen = false"
+                                            @if ($childActive) aria-current="page" @endif
+                                            @class([
+                                                'block rounded-lg px-3 py-2 text-sm font-medium transition',
+                                                'bg-slate-800 text-white' => $childActive,
+                                                'text-slate-400 hover:bg-slate-900 hover:text-white' => ! $childActive,
+                                            ])
+                                        >
+                                            {{ $child['label'] }}
+                                        </a>
+
+                                    @endforeach
+
+                                </div>
+
+                            </div>
+
+                            @continue
+
+                        @endif
 
                         @php
                             $isActive = request()->routeIs(

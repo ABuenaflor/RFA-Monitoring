@@ -3,17 +3,205 @@
 namespace App\Services;
 
 use App\Models\Rfa;
+use App\Support\Workflow;
 use Carbon\Carbon;
 
+/**
+ * Prescribed Case Time (PCT) rules.
+ *
+ * Five checkpoints, in the order a case moves through them:
+ *
+ *  1. Date Filed - Interviewer Assignment   on-site: same day, online: 2 days
+ *  2. Interviewer Assignment - Date Interviewed          3 days
+ *  3. Date Interviewed - SEADO Assignment                3 days
+ *  4. SEADO Assignment - 1st Conference                 10 days
+ *  5. 1st Conference - Date Disposed                    30 days
+ *
+ * Days are calendar days and the start day is day 0. Each checkpoint is
+ * rated against its own limit:
+ *
+ *  - Beyond PCT  past the limit
+ *  - On PCT      the deadline day itself (still compliant)
+ *  - Nearing PCT the day before the deadline; the last 3 days before it
+ *                for the 10- and 30-day rules
+ *  - Within PCT  anything earlier
+ */
 class PctService
 {
-    public const MAX_DAYS = 3;
+    public const FILING_ASSIGNMENT = 'filing_assignment';
 
-    private const DISPOSITION_MAX_DAYS = 30;
+    public const ASSIGNMENT_INTERVIEW = 'assignment_interview';
 
+    public const INTERVIEW_SEADO = 'interview_seado';
 
+    public const SEADO_CONFERENCE = 'seado_conference';
 
+    public const CONFERENCE_DISPOSED = 'conference_disposed';
 
+    public const MODE_ONSITE = 'onsite';
+
+    public const MODE_ONLINE = 'online';
+
+    /**
+     * Limits of at least this many days warn over the last three days.
+     */
+    private const LONG_LIMIT = 10;
+
+    /**
+     * Date fields in workflow order. A later field being filled in shows
+     * the case has already moved past an earlier checkpoint.
+     */
+    private const DATE_ORDER = [
+        'date_filed',
+        'date_assigned_interviewer',
+        'date_interview',
+        'date_validated',
+        'date_turned_over_lr',
+        'date_assigned_seado',
+        'date_initial_conference',
+        'date_second_conference',
+        'date_both_parties_appeared',
+        'date_disposed',
+    ];
+
+    /**
+     * The checkpoint definitions, in workflow order.
+     *
+     * @return array<string, array{
+     *     label: string,
+     *     short_label: string,
+     *     start_field: string,
+     *     start_label: string,
+     *     end_field: string,
+     *     end_label: string,
+     *     limit_days: ?int,
+     *     limit_label: string,
+     *     passed_statuses: array<int, string>
+     * }>
+     */
+    public static function definitions(): array
+    {
+        return [
+            self::FILING_ASSIGNMENT => [
+                'label' => 'Date Filed - Interviewer Assignment',
+                'short_label' => 'Filed → Interviewer',
+                'start_field' => 'date_filed',
+                'start_label' => 'Date Filed',
+                'end_field' => 'date_assigned_interviewer',
+                'end_label' => 'Interviewer Assignment',
+                'limit_days' => null,
+                'limit_label' => 'On-site: same day · Online: 2 days',
+                'passed_statuses' => self::statusesFrom(Workflow::FOR_VALIDATION),
+            ],
+
+            self::ASSIGNMENT_INTERVIEW => [
+                'label' => 'Interviewer Assignment - Date Interviewed',
+                'short_label' => 'Interviewer → Interview',
+                'start_field' => 'date_assigned_interviewer',
+                'start_label' => 'Interviewer Assignment',
+                'end_field' => 'date_interview',
+                'end_label' => 'Date Interviewed',
+                'limit_days' => 3,
+                'limit_label' => '3 days',
+
+                /*
+                | "For Validation" can still be the interviewer's own stage,
+                | so it is not proof the interview date should exist.
+                */
+
+                'passed_statuses' => self::statusesFrom(Workflow::VALIDATED),
+            ],
+
+            self::INTERVIEW_SEADO => [
+                'label' => 'Date Interviewed - SEADO Assignment',
+                'short_label' => 'Interview → SEADO',
+                'start_field' => 'date_interview',
+                'start_label' => 'Date Interviewed',
+                'end_field' => 'date_assigned_seado',
+                'end_label' => 'SEADO Assignment',
+                'limit_days' => 3,
+                'limit_label' => '3 days',
+                'passed_statuses' => self::statusesFrom(Workflow::ASSIGNED_TO_SEADO),
+            ],
+
+            self::SEADO_CONFERENCE => [
+                'label' => 'SEADO Assignment - 1st Conference',
+                'short_label' => 'SEADO → 1st Conference',
+                'start_field' => 'date_assigned_seado',
+                'start_label' => 'SEADO Assignment',
+                'end_field' => 'date_initial_conference',
+                'end_label' => '1st Conference',
+                'limit_days' => 10,
+                'limit_label' => '10 days',
+                'passed_statuses' => self::statusesFrom(Workflow::ONGOING),
+            ],
+
+            self::CONFERENCE_DISPOSED => [
+                'label' => '1st Conference - Date Disposed',
+                'short_label' => '1st Conference → Disposed',
+                'start_field' => 'date_initial_conference',
+                'start_label' => '1st Conference',
+                'end_field' => 'date_disposed',
+                'end_label' => 'Date Disposed',
+                'limit_days' => 30,
+                'limit_label' => '30 days',
+                'passed_statuses' => [Workflow::DISPOSED],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function keys(): array
+    {
+        return array_keys(self::definitions());
+    }
+
+    public static function label(string $key): string
+    {
+        return self::definitions()[$key]['label'] ?? $key;
+    }
+
+    /**
+     * Normalise a free-text mode of filing to onsite / online, or null.
+     */
+    public static function normalizeMode(?string $mode): ?string
+    {
+        $mode = strtolower(
+            preg_replace('/[^a-z]/i', '', (string) $mode)
+        );
+
+        return match ($mode) {
+            'onsite', 'walkin' => self::MODE_ONSITE,
+            'online' => self::MODE_ONLINE,
+            default => null,
+        };
+    }
+
+    /**
+     * Days allowed for a checkpoint on this case, or null when it cannot
+     * be known (Date Filed - Interviewer Assignment without a mode).
+     */
+    public static function limitFor(string $key, Rfa $rfa): ?int
+    {
+        if ($key !== self::FILING_ASSIGNMENT) {
+            return self::definitions()[$key]['limit_days'];
+        }
+
+        return match (self::normalizeMode($rfa->mode_of_filing)) {
+            self::MODE_ONSITE => 0,
+            self::MODE_ONLINE => 2,
+            default => null,
+        };
+    }
+
+    /**
+     * @return array{
+     *     checkpoints: array<string, array<string, mixed>>,
+     *     total_processing: array<string, mixed>
+     * }
+     */
     public function evaluate(
         Rfa $rfa,
         ?Carbon $asOf = null
@@ -22,738 +210,229 @@ class PctService
             ->copy()
             ->startOfDay();
 
-        $stageOne = $this->checkpoint(
-            rfa: $rfa,
-            stageKey: 'assignment',
-            stageLabel: 'Filed → Interviewer Assignment',
-            startField: 'date_filed',
-            endField: 'date_assigned_interviewer',
-            laterDateFields: [
-                'date_interview',
-                'date_validated',
-                'date_turned_over_lr',
-                'date_assigned_seado',
-                'date_initial_conference',
-                'date_both_parties_appeared',
-                'date_disposed',
-            ],
-            asOf: $asOf,
-        );
+        $checkpoints = [];
 
-        $stageTwo = $this->checkpoint(
-            rfa: $rfa,
-            stageKey: 'interview',
-            stageLabel: 'Interviewer Assignment → Interview',
-            startField: 'date_assigned_interviewer',
-            endField: 'date_interview',
-            laterDateFields: [
-                'date_validated',
-                'date_turned_over_lr',
-                'date_assigned_seado',
-                'date_initial_conference',
-                'date_both_parties_appeared',
-                'date_disposed',
-            ],
-            asOf: $asOf,
-        );
+        foreach (self::definitions() as $key => $definition) {
+            $checkpoints[$key] = $this->checkpoint(
+                $rfa,
+                $key,
+                $definition,
+                $asOf
+            );
+        }
 
         return [
-            'stage_one' => $stageOne,
-            'stage_two' => $stageTwo,
-            'disposition_pct' =>
-            $this->evaluateDispositionPct(
-                $rfa,
-                $asOf
-            ),
+            'checkpoints' => $checkpoints,
+
             'total_processing' =>
                 $this->totalProcessing($rfa),
         ];
     }
 
-    private function evaluateDispositionPct(
-    Rfa $rfa,
-    ?Carbon $asOf = null
-): array {
-    $asOf = (
-        $asOf
-        ?? now()
-    )
-        ->copy()
-        ->startOfDay();
+    /**
+     * Rate elapsed days against a limit.
+     *
+     * @return array{key: string, label: string}
+     */
+    public function classify(int $days, int $limit = 3): array
+    {
+        $nearingWindow = $limit >= self::LONG_LIMIT ? 3 : 1;
 
-    $start = $rfa->date_filed
-        ? Carbon::parse(
-            $rfa->date_filed
-        )->startOfDay()
-        : null;
-
-    $end = $rfa->date_disposed
-        ? Carbon::parse(
-            $rfa->date_disposed
-        )->startOfDay()
-        : null;
-
-    /*
-    |--------------------------------------------------------------------------
-    | Missing Date Filed
-    |--------------------------------------------------------------------------
-    */
-
-    if ($start === null) {
-        return [
-            'stage_key' =>
-                'disposition',
-
-            'label' =>
-                'Overall Disposition PCT',
-
-            'state' =>
-                'missing_start',
-
-            'is_active' =>
-                false,
-
-            'is_completed' =>
-                false,
-
-            'days' =>
-                null,
-
-            'status_key' =>
-                'indeterminate',
-
-            'status_label' =>
-                'Disposition PCT Indeterminate',
-
-            'is_compliant' =>
-                null,
-
-            'start' =>
-                null,
-
-            'end' =>
-                $end,
-
-            'deadline' =>
-                null,
-
-            'remaining_days' =>
-                null,
-
-            'overdue_days' =>
-                null,
-
-            'message' =>
-                'Date Filed is missing.',
-        ];
-    }
-
-    $deadline = $start
-        ->copy()
-        ->addDays(
-            self::DISPOSITION_MAX_DAYS
-        );
-
-    /*
-    |--------------------------------------------------------------------------
-    | Completed / disposed RFA
-    |--------------------------------------------------------------------------
-    */
-
-    if ($end !== null) {
-        $days =
-            $this->signedCalendarDays(
-                $start,
-                $end
-            );
-
-        if ($days < 0) {
-            return [
-                'stage_key' =>
-                    'disposition',
-
-                'label' =>
-                    'Overall Disposition PCT',
-
-                'state' =>
-                    'invalid',
-
-                'is_active' =>
-                    false,
-
-                'is_completed' =>
-                    false,
-
-                'days' =>
-                    $days,
-
-                'status_key' =>
-                    'indeterminate',
-
-                'status_label' =>
-                    'Disposition PCT Indeterminate',
-
-                'is_compliant' =>
-                    null,
-
-                'start' =>
-                    $start,
-
-                'end' =>
-                    $end,
-
-                'deadline' =>
-                    $deadline,
-
-                'remaining_days' =>
-                    null,
-
-                'overdue_days' =>
-                    null,
-
-                'message' =>
-                    'Date Disposed is earlier than Date Filed.',
-            ];
+        if ($days > $limit) {
+            return ['key' => 'beyond', 'label' => 'Beyond PCT'];
         }
 
-        $withinPct =
-            $days
-            <= self::DISPOSITION_MAX_DAYS;
-
-        return [
-            'stage_key' =>
-                'disposition',
-
-            'label' =>
-                'Overall Disposition PCT',
-
-            'state' =>
-                'completed',
-
-            'is_active' =>
-                false,
-
-            'is_completed' =>
-                true,
-
-            'days' =>
-                $days,
-
-            'status_key' =>
-                $withinPct
-                    ? 'disposed_within'
-                    : 'disposed_beyond',
-
-            'status_label' =>
-                $withinPct
-                    ? 'Disposed Within PCT'
-                    : 'Disposed Beyond PCT',
-
-            'is_compliant' =>
-                $withinPct,
-
-            'start' =>
-                $start,
-
-            'end' =>
-                $end,
-
-            'deadline' =>
-                $deadline,
-
-            'remaining_days' =>
-                null,
-
-            'overdue_days' =>
-                $withinPct
-                    ? 0
-                    : (
-                        $days
-                        - self::DISPOSITION_MAX_DAYS
-                    ),
-
-            'message' =>
-                $withinPct
-                    ? 'RFA was disposed within the 30-day PCT.'
-                    : 'RFA was disposed beyond the 30-day PCT.',
-        ];
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Already marked disposed but Date Disposed is missing
-    |--------------------------------------------------------------------------
-    |
-    | Do not treat this as an active timer.
-    |
-    */
-
-    if (
-        $this->showsDisposedWithoutDate(
-            $rfa
-        )
-    ) {
-        return [
-            'stage_key' =>
-                'disposition',
-
-            'label' =>
-                'Overall Disposition PCT',
-
-            'state' =>
-                'missing_end',
-
-            'is_active' =>
-                false,
-
-            'is_completed' =>
-                false,
-
-            'days' =>
-                null,
-
-            'status_key' =>
-                'indeterminate',
-
-            'status_label' =>
-                'Disposition PCT Indeterminate',
-
-            'is_compliant' =>
-                null,
-
-            'start' =>
-                $start,
-
-            'end' =>
-                null,
-
-            'deadline' =>
-                $deadline,
-
-            'remaining_days' =>
-                null,
-
-            'overdue_days' =>
-                null,
-
-            'message' =>
-                'RFA is marked disposed but Date Disposed is missing.',
-        ];
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Active / undisposed RFA
-    |--------------------------------------------------------------------------
-    */
-
-    $days =
-        $this->signedCalendarDays(
-            $start,
-            $asOf
-        );
-
-    if ($days < 0) {
-        return [
-            'stage_key' =>
-                'disposition',
-
-            'label' =>
-                'Overall Disposition PCT',
-
-            'state' =>
-                'invalid',
-
-            'is_active' =>
-                false,
-
-            'is_completed' =>
-                false,
-
-            'days' =>
-                $days,
-
-            'status_key' =>
-                'indeterminate',
-
-            'status_label' =>
-                'Disposition PCT Indeterminate',
-
-            'is_compliant' =>
-                null,
-
-            'start' =>
-                $start,
-
-            'end' =>
-                null,
-
-            'deadline' =>
-                $deadline,
-
-            'remaining_days' =>
-                null,
-
-            'overdue_days' =>
-                null,
-
-            'message' =>
-                'Date Filed is later than the monitoring date.',
-        ];
-    }
-
-    if (
-        $days
-        < self::DISPOSITION_MAX_DAYS
-    ) {
-        $statusKey =
-            'active_within';
-
-        $statusLabel =
-            'Active Within 30-Day PCT';
-
-        $message =
-            'RFA is still within the 30-day disposition PCT.';
-    } elseif (
-        $days
-        === self::DISPOSITION_MAX_DAYS
-    ) {
-        $statusKey =
-            'due_today';
-
-        $statusLabel =
-            'Due Today';
-
-        $message =
-            'RFA has reached the 30-day disposition deadline.';
-    } else {
-        $statusKey =
-            'active_beyond';
-
-        $statusLabel =
-            'Active Beyond 30-Day PCT';
-
-        $message =
-            'RFA remains undisposed beyond the 30-day PCT deadline.';
-    }
-
-    return [
-        'stage_key' =>
-            'disposition',
-
-        'label' =>
-            'Overall Disposition PCT',
-
-        'state' =>
-            'active',
-
-        'is_active' =>
-            true,
-
-        'is_completed' =>
-            false,
-
-        'days' =>
-            $days,
-
-        'status_key' =>
-            $statusKey,
-
-        'status_label' =>
-            $statusLabel,
-
-        'is_compliant' =>
-            null,
-
-        'start' =>
-            $start,
-
-        'end' =>
-            null,
-
-        'deadline' =>
-            $deadline,
-
-        'remaining_days' =>
-            max(
-                self::DISPOSITION_MAX_DAYS
-                - $days,
-                0
-            ),
-
-        'overdue_days' =>
-            max(
-                $days
-                - self::DISPOSITION_MAX_DAYS,
-                0
-            ),
-
-        'message' =>
-            $message,
-    ];
-}
-
-    private function showsDisposedWithoutDate(
-    Rfa $rfa
-): bool {
-    if (
-        $rfa->monitoring_bucket
-        === 'disposed'
-    ) {
-        return true;
-    }
-
-    if (
-        $rfa->status
-        === 'disposed'
-    ) {
-        return true;
-    }
-
-    return strtolower(
-        trim(
-            (string)
-            $rfa->source_case_status
-        )
-    ) === 'disposed';
-}
-
-private function signedCalendarDays(
-    Carbon $start,
-    Carbon $end
-): int {
-    return (int) $start
-        ->copy()
-        ->startOfDay()
-        ->diffInDays(
-            $end
-                ->copy()
-                ->startOfDay(),
-            false
-        );
-}
-
-    private function checkpoint(
-        Rfa $rfa,
-        string $stageKey,
-        string $stageLabel,
-        string $startField,
-        string $endField,
-        array $laterDateFields,
-        Carbon $asOf
-    ): array {
-        $startDate = $this->dateValue(
-            $rfa,
-            $startField
-        );
-
-        $endDate = $this->dateValue(
-            $rfa,
-            $endField
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Missing start date
-        |--------------------------------------------------------------------------
-        */
-
-        if (! $startDate) {
-            return $this->result(
-                stageKey: $stageKey,
-                stageLabel: $stageLabel,
-                state: 'missing_start',
-                message: $this->startMissingMessage(
-                    $stageKey
-                ),
-            );
+        if ($days === $limit) {
+            return ['key' => 'on', 'label' => 'On PCT'];
         }
 
-        $deadline = $startDate
-            ->copy()
-            ->addDays(self::MAX_DAYS);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Completed checkpoint
-        |--------------------------------------------------------------------------
-        */
-
-        if ($endDate) {
-            $days = $this->daysBetween(
-                $startDate,
-                $endDate
-            );
-
-            if ($days < 0) {
-                return $this->result(
-                    stageKey: $stageKey,
-                    stageLabel: $stageLabel,
-                    state: 'invalid',
-                    startDate: $startDate,
-                    endDate: $endDate,
-                    deadline: $deadline,
-                    message:
-                        'The completion date occurs before the start date.',
-                );
-            }
-
-            $classification =
-                $this->classify($days);
-
-            return $this->result(
-                stageKey: $stageKey,
-                stageLabel: $stageLabel,
-                state: 'completed',
-                days: $days,
-                classificationKey:
-                    $classification['key'],
-                classificationLabel:
-                    $classification['label'],
-                startDate: $startDate,
-                endDate: $endDate,
-                deadline: $deadline,
-                remainingDays:
-                    self::MAX_DAYS - $days,
-                message:
-                    'Historical PCT result.',
-            );
+        if ($days >= $limit - $nearingWindow) {
+            return ['key' => 'nearing', 'label' => 'Nearing PCT'];
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | End date missing although case already progressed
-        |--------------------------------------------------------------------------
-        |
-        | Do not keep aging a historical case when evidence shows that
-        | the workflow already passed this checkpoint.
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            $this->hasLaterEvidence(
-                $rfa,
-                $laterDateFields
-            )
-            || $this->workflowBeyondStage(
-                $rfa,
-                $stageKey
-            )
-            || $this->isDisposed($rfa)
-        ) {
-            return $this->result(
-                stageKey: $stageKey,
-                stageLabel: $stageLabel,
-                state: 'missing_end',
-                startDate: $startDate,
-                deadline: $deadline,
-                message: $this->endMissingMessage(
-                    $stageKey
-                ),
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Active checkpoint
-        |--------------------------------------------------------------------------
-        */
-
-        $days = $this->daysBetween(
-            $startDate,
-            $asOf
-        );
-
-        if ($days < 0) {
-            return $this->result(
-                stageKey: $stageKey,
-                stageLabel: $stageLabel,
-                state: 'invalid',
-                startDate: $startDate,
-                deadline: $deadline,
-                message:
-                    'The checkpoint start date is in the future.',
-            );
-        }
-
-        $classification =
-            $this->classify($days);
-
-        return $this->result(
-            stageKey: $stageKey,
-            stageLabel: $stageLabel,
-            state: 'active',
-            days: $days,
-            classificationKey:
-                $classification['key'],
-            classificationLabel:
-                $classification['label'],
-            startDate: $startDate,
-            deadline: $deadline,
-            remainingDays:
-                self::MAX_DAYS - $days,
-            message:
-                'Active PCT timer.',
-        );
+        return ['key' => 'within', 'label' => 'Within PCT'];
     }
 
     /**
-     * Classify elapsed processing days.
+     * Human label for any checkpoint state, including the ones that could
+     * not be rated.
+     *
+     * @param  array<string, mixed>  $checkpoint
      */
-    public function classify(int $days): array
+    public static function statusLabel(array $checkpoint): string
     {
-        if ($days <= 1) {
-            return [
-                'key' => 'within',
-                'label' => 'Within PCT',
-            ];
+        if (in_array($checkpoint['state'], ['active', 'completed'], true)) {
+            return (string) $checkpoint['classification_label'];
         }
 
-        if ($days === 2) {
-            return [
-                'key' => 'nearing',
-                'label' => 'Nearing PCT',
-            ];
-        }
+        return match ($checkpoint['state']) {
+            'missing_start' => 'Start Date Missing',
+            'missing_end' => 'Completion Date Missing',
+            'missing_mode' => 'Mode of Filing Missing',
+            'invalid' => 'Invalid Dates',
+            default => 'Unavailable',
+        };
+    }
 
-        if ($days === 3) {
-            return [
-                'key' => 'on',
-                'label' => 'On PCT',
-            ];
-        }
+    /**
+     * @param  array<string, mixed>  $definition
+     * @return array<string, mixed>
+     */
+    private function checkpoint(
+        Rfa $rfa,
+        string $key,
+        array $definition,
+        Carbon $asOf
+    ): array {
+        $startDate = $this->dateValue($rfa, $definition['start_field']);
 
-        return [
-            'key' => 'beyond',
-            'label' => 'Beyond PCT',
+        $endDate = $this->dateValue($rfa, $definition['end_field']);
+
+        $base = [
+            'stage_key' => $key,
+            'stage_label' => $definition['label'],
+            'limit_label' => $definition['limit_label'],
         ];
+
+        if (! $startDate) {
+            return $this->result($base, 'missing_start', message:
+                $definition['start_label'] . ' is missing.');
+        }
+
+        $limit = self::limitFor($key, $rfa);
+
+        if ($limit === null) {
+            return $this->result($base, 'missing_mode', startDate: $startDate,
+                message: 'Mode of filing is missing, so the limit (same day'
+                    . ' for on-site, 2 days for online) cannot be applied.');
+        }
+
+        $base['limit_days'] = $limit;
+
+        $deadline = $startDate->copy()->addDays($limit);
+
+        /*
+        | Completed
+        */
+
+        if ($endDate) {
+            $days = $this->daysBetween($startDate, $endDate);
+
+            if ($days < 0) {
+                return $this->result($base, 'invalid',
+                    startDate: $startDate, endDate: $endDate, deadline: $deadline,
+                    message: $definition['end_label'] . ' is earlier than '
+                        . $definition['start_label'] . '.');
+            }
+
+            return $this->result($base, 'completed',
+                days: $days,
+                classification: $this->classify($days, $limit),
+                startDate: $startDate, endDate: $endDate, deadline: $deadline,
+                message: 'Completed in ' . $days . ' day(s) against a limit of '
+                    . $this->limitText($limit) . '.');
+        }
+
+        /*
+        | End date missing although the case has already moved on — do not
+        | keep aging a checkpoint the workflow has passed.
+        */
+
+        if ($this->hasPassed($rfa, $definition)) {
+            return $this->result($base, 'missing_end',
+                startDate: $startDate, deadline: $deadline,
+                message: $definition['end_label']
+                    . ' is missing although the case has already progressed.');
+        }
+
+        /*
+        | Active
+        */
+
+        $days = $this->daysBetween($startDate, $asOf);
+
+        if ($days < 0) {
+            return $this->result($base, 'invalid',
+                startDate: $startDate, deadline: $deadline,
+                message: $definition['start_label'] . ' is in the future.');
+        }
+
+        return $this->result($base, 'active',
+            days: $days,
+            classification: $this->classify($days, $limit),
+            startDate: $startDate, deadline: $deadline,
+            message: 'Waiting for ' . $definition['end_label'] . ' — day '
+                . $days . ' of ' . $this->limitText($limit) . '.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $definition
+     */
+    private function hasPassed(Rfa $rfa, array $definition): bool
+    {
+        $endIndex = array_search(
+            $definition['end_field'],
+            self::DATE_ORDER,
+            true
+        );
+
+        foreach (array_slice(self::DATE_ORDER, $endIndex + 1) as $field) {
+            if ($rfa->{$field}) {
+                return true;
+            }
+        }
+
+        if (in_array((string) $rfa->status, $definition['passed_statuses'], true)) {
+            return true;
+        }
+
+        return $this->isDisposed($rfa);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function statusesFrom(string $status): array
+    {
+        $order = [
+            Workflow::FOR_VALIDATION,
+            Workflow::VALIDATED,
+            Workflow::FOR_TURNOVER,
+            Workflow::FOR_SEADO_ASSIGNMENT,
+            Workflow::ASSIGNED_TO_SEADO,
+            Workflow::FOR_NOTICE_PREPARATION,
+            Workflow::FOR_CONFERENCE,
+            Workflow::ONGOING,
+            Workflow::FOR_DISPOSITION,
+            Workflow::DISPOSED,
+        ];
+
+        return array_slice($order, (int) array_search($status, $order, true));
+    }
+
+    private function limitText(int $limit): string
+    {
+        return $limit === 0 ? 'the same day' : $limit . ' day(s)';
     }
 
     /**
      * Date Filed → Date Disposed.
      *
-     * This is a processing-duration measurement only.
-     * It is not assigned a PCT compliance classification.
+     * A processing-duration measurement only, never rated against a limit.
+     *
+     * @return array<string, mixed>
      */
-    private function totalProcessing(
-        Rfa $rfa
-    ): array {
-        $dateFiled = $this->dateValue(
-            $rfa,
-            'date_filed'
-        );
+    private function totalProcessing(Rfa $rfa): array
+    {
+        $dateFiled = $this->dateValue($rfa, 'date_filed');
 
-        $dateDisposed = $this->dateValue(
-            $rfa,
-            'date_disposed'
-        );
+        $dateDisposed = $this->dateValue($rfa, 'date_disposed');
 
         if (! $dateFiled) {
             return [
                 'state' => 'unavailable',
                 'days' => null,
-                'message' =>
-                    'Date filed is not available.',
+                'message' => 'Date filed is not available.',
             ];
         }
 
@@ -761,211 +440,102 @@ private function signedCalendarDays(
             return [
                 'state' => 'not_disposed',
                 'days' => null,
-                'message' =>
-                    'Case has not been disposed.',
+                'message' => 'Case has not been disposed.',
             ];
         }
 
-        $days = $this->daysBetween(
-            $dateFiled,
-            $dateDisposed
-        );
+        $days = $this->daysBetween($dateFiled, $dateDisposed);
 
         if ($days < 0) {
             return [
                 'state' => 'invalid',
                 'days' => null,
-                'message' =>
-                    'Date disposed occurs before date filed.',
+                'message' => 'Date disposed occurs before date filed.',
             ];
         }
 
         return [
             'state' => 'completed',
             'days' => $days,
-            'message' =>
-                'Total processing duration.',
+            'message' => 'Total processing duration.',
         ];
     }
 
-    private function workflowBeyondStage(
-        Rfa $rfa,
-        string $stageKey
-    ): bool {
-        $status = (string) $rfa->status;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Stage 1
-        |--------------------------------------------------------------------------
-        |
-        | Once the RFA reaches validation-related workflow, interviewer
-        | assignment should already have occurred.
-        |--------------------------------------------------------------------------
-        */
-
-        if ($stageKey === 'assignment') {
-            return in_array(
-                $status,
-                [
-                    'for_validation',
-                    'validated',
-                    'for_turnover',
-                    'for_seado_assignment',
-                    'assigned_to_seado',
-                    'for_notice_preparation',
-                    'for_conference',
-                    'ongoing',
-                    'for_disposition',
-                    'disposed',
-                ],
-                true
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Stage 2
-        |--------------------------------------------------------------------------
-        |
-        | "For Validation" may still be the current interviewer's stage,
-        | so it is deliberately NOT treated as proof that the interview
-        | date should already exist.
-        |--------------------------------------------------------------------------
-        */
-
-        return in_array(
-            $status,
-            [
-                'validated',
-                'for_turnover',
-                'for_seado_assignment',
-                'assigned_to_seado',
-                'for_notice_preparation',
-                'for_conference',
-                'ongoing',
-                'for_disposition',
-                'disposed',
-            ],
-            true
-        );
+    private function isDisposed(Rfa $rfa): bool
+    {
+        return $rfa->monitoring_bucket === Workflow::BUCKET_DISPOSED
+            || $rfa->status === Workflow::DISPOSED
+            || $rfa->date_disposed !== null
+            || strtolower(trim((string) $rfa->source_case_status)) === 'disposed';
     }
 
-    private function hasLaterEvidence(
-        Rfa $rfa,
-        array $fields
-    ): bool {
-        foreach ($fields as $field) {
-            if ($rfa->{$field}) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function isDisposed(
-        Rfa $rfa
-    ): bool {
-        return $rfa->monitoring_bucket
-                === 'disposed'
-            || $rfa->status === 'disposed'
-            || $rfa->date_disposed !== null;
-    }
-
-    private function dateValue(
-        Rfa $rfa,
-        string $field
-    ): ?Carbon {
+    private function dateValue(Rfa $rfa, string $field): ?Carbon
+    {
         $value = $rfa->{$field};
 
         if (! $value) {
             return null;
         }
 
-        return Carbon::parse($value)
-            ->startOfDay();
+        return Carbon::parse($value)->startOfDay();
     }
 
-    private function daysBetween(
-        Carbon $start,
-        Carbon $end
-    ): int {
-        return (int) $start->diffInDays(
-            $end,
-            false
-        );
+    private function daysBetween(Carbon $start, Carbon $end): int
+    {
+        return (int) $start->diffInDays($end, false);
     }
 
-    private function startMissingMessage(
-        string $stageKey
-    ): string {
-        return match ($stageKey) {
-            'assignment' =>
-                'Date filed is missing.',
-
-            'interview' =>
-                'Interviewer assignment date is missing.',
-
-            default =>
-                'Checkpoint start date is missing.',
-        };
-    }
-
-    private function endMissingMessage(
-        string $stageKey
-    ): string {
-        return match ($stageKey) {
-            'assignment' =>
-                'Interviewer assignment date is missing although the case has already progressed.',
-
-            'interview' =>
-                'Date of Interview is missing although the case has already progressed.',
-
-            default =>
-                'Checkpoint completion date is missing.',
-        };
-    }
-
+    /**
+     * @param  array<string, mixed>  $base
+     * @param  array{key: string, label: string}|null  $classification
+     * @return array<string, mixed>
+     */
     private function result(
-        string $stageKey,
-        string $stageLabel,
+        array $base,
         string $state,
         ?int $days = null,
-        ?string $classificationKey = null,
-        ?string $classificationLabel = null,
+        ?array $classification = null,
         ?Carbon $startDate = null,
         ?Carbon $endDate = null,
         ?Carbon $deadline = null,
-        ?int $remainingDays = null,
         ?string $message = null
     ): array {
-        return [
-            'stage_key' => $stageKey,
-            'stage_label' => $stageLabel,
+        $limit = $base['limit_days'] ?? null;
+
+        $isRated = $days !== null && $limit !== null;
+
+        return $base + [
+            'limit_days' => $limit,
 
             'state' => $state,
 
-            'is_active' =>
-                $state === 'active',
+            'is_active' => $state === 'active',
 
-            'is_completed' =>
-                $state === 'completed',
+            'is_completed' => $state === 'completed',
 
             'days' => $days,
 
-            'classification_key' =>
-                $classificationKey,
+            'classification_key' => $classification['key'] ?? null,
 
-            'classification_label' =>
-                $classificationLabel,
+            'classification_label' => $classification['label'] ?? null,
+
+            'is_compliant' => $state === 'completed'
+                ? $classification['key'] !== 'beyond'
+                : null,
 
             'start_date' => $startDate,
+
             'end_date' => $endDate,
+
             'deadline' => $deadline,
 
-            'remaining_days' =>
-                $remainingDays,
+            'remaining_days' => $isRated && $state === 'active'
+                ? max($limit - $days, 0)
+                : null,
+
+            'overdue_days' => $isRated
+                ? max($days - $limit, 0)
+                : null,
 
             'message' => $message,
         ];

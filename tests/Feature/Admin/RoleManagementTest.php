@@ -31,10 +31,10 @@ class RoleManagementTest extends TestCase
         $this->actingAs($this->admin)
             ->post(route('admin.roles.store'), [
                 'name' => 'Records Officer',
-                'description' => 'Handles CSV intake.',
+                'description' => 'Handles case records.',
                 'permissions' => [
                     Permissions::DASHBOARD_VIEW,
-                    Permissions::IMPORT_MANAGE,
+                    Permissions::RFA_VIEW,
                 ],
             ])
             ->assertRedirect(route('admin.roles.index'));
@@ -48,10 +48,43 @@ class RoleManagementTest extends TestCase
         $this->assertEqualsCanonicalizing(
             [
                 Permissions::DASHBOARD_VIEW,
-                Permissions::IMPORT_MANAGE,
+                Permissions::RFA_VIEW,
             ],
             $role->permissionKeys()
         );
+    }
+
+    public function test_csv_import_cannot_be_granted_to_a_role(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('admin.roles.store'), [
+                'name' => 'Records Officer',
+                'permissions' => [
+                    Permissions::DASHBOARD_VIEW,
+                    Permissions::IMPORT_MANAGE,
+                ],
+            ])
+            ->assertRedirect(route('admin.roles.index'));
+
+        $this->assertSame(
+            [Permissions::DASHBOARD_VIEW],
+            Role::query()
+                ->where('slug', 'records-officer')
+                ->firstOrFail()
+                ->permissionKeys()
+        );
+    }
+
+    public function test_the_role_editor_shows_csv_import_as_administrator_only(): void
+    {
+        $this->actingAs($this->admin)
+            ->get(route('admin.roles.create'))
+            ->assertOk()
+            ->assertSeeText('Administrator only')
+            ->assertDontSee(
+                'value="' . Permissions::IMPORT_MANAGE . '"',
+                false
+            );
     }
 
     public function test_updating_a_role_replaces_its_permission_set(): void

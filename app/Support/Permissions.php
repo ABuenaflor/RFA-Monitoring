@@ -272,6 +272,25 @@ final class Permissions
     }
 
     /**
+     * Permissions only the Administrator role may hold. They stay in the
+     * catalogue (so their gates exist) but cannot be granted to any other
+     * role.
+     *
+     * @return array<int, string>
+     */
+    public static function adminOnly(): array
+    {
+        return [
+            self::IMPORT_MANAGE,
+        ];
+    }
+
+    public static function isAdminOnly(string $permission): bool
+    {
+        return in_array($permission, self::adminOnly(), true);
+    }
+
+    /**
      * Reject any permission key that is not part of the catalogue.
      *
      * @param  array<int, string>  $permissions

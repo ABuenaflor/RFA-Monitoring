@@ -5,8 +5,9 @@ namespace App\Support;
 /**
  * The complete, closed list of settings an administrator may change.
  *
- * Business rules are deliberately absent: the 3-day and 30-day PCT limits
- * are policy, not configuration, and are not editable from the interface.
+ * Business rules are deliberately absent: the PCT checkpoint limits
+ * (App\Services\PctService) are policy, not configuration, and are not
+ * editable from the interface.
  */
 final class SystemSettings
 {

@@ -233,11 +233,19 @@ class OperationsController extends Controller
         return back()->with(
             'status',
             sprintf(
-                '%d active cases scanned, %d alerts current, %d cleared.',
+                '%d active cases scanned, %d alerts current, %d cleared, %d %s sent.',
                 $result['cases_scanned'],
                 $result['alerts'],
-                $result['cleared']
+                $result['cleared'],
+                $result['emails_sent'],
+                \Illuminate\Support\Str::plural('email', $result['emails_sent'])
             )
+            . ($result['emails_failed'] > 0
+                ? sprintf(
+                    ' %d could not be sent and will be retried on the next scan.',
+                    $result['emails_failed']
+                )
+                : '')
         );
     }
 

@@ -89,7 +89,7 @@
                 <p class="font-bold text-white">PCT</p>
 
                 <p class="mt-1">
-                    3-day checkpoints and 30-day disposition monitoring
+                    Five checkpoints from filing to disposition
                 </p>
             </div>
 

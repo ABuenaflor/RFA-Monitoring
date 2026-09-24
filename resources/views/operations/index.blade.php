@@ -363,8 +363,9 @@
                            p-4 text-amber-800"
                 >
                     <strong>PCT due today:</strong>
-                    an active Stage 1 or Stage 2 checkpoint that has reached day
-                    3, or an undisposed case that has reached day 30.
+                    an active PCT checkpoint that has reached its deadline day
+                    (e.g. day 3 of a 3-day rule, day 30 of 1st Conference - Date
+                    Disposed).
                 </div>
 
 

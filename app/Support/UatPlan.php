@@ -134,7 +134,7 @@ final class UatPlan
                 'case.disposition' => [
                     'title' => 'Disposition closes the case',
                     'steps' => 'Record an official disposition and a Date Disposed.',
-                    'expected' => 'The case moves to Disposed, and the 30-day PCT result is shown.',
+                    'expected' => 'The case moves to Disposed, and the 1st Conference - Date Disposed PCT result is shown.',
                 ],
 
                 'case.disposition_pairing' => [
@@ -172,7 +172,7 @@ final class UatPlan
                 'pct.missing_interview' => [
                     'title' => 'A missing historical interview date is not a breach',
                     'steps' => 'Check an imported case with no Date of Interview but later workflow dates.',
-                    'expected' => 'Stage 2 reports a missing end date, not Beyond PCT.',
+                    'expected' => 'Interviewer Assignment - Date Interviewed reports a missing end date, not Beyond PCT.',
                 ],
 
                 'report.filters' => [

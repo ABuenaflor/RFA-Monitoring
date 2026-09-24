@@ -101,14 +101,10 @@ class ReportController extends Controller
 
         $activePct = $this->emptyPctSummary();
 
-        $historicalStageOne =
-            $this->emptyHistoricalSummary();
-
-        $historicalStageTwo =
-            $this->emptyHistoricalSummary();
-
-            $reportDispositionPct =
-        $this->emptySeadoDispositionPctSummary();
+        $historicalPct = array_fill_keys(
+            PctService::keys(),
+            $this->emptyHistoricalSummary()
+        );
 
         $processingDays = collect();
 
@@ -116,32 +112,17 @@ class ReportController extends Controller
             $evaluation =
                 $pctService->evaluate($rfa);
 
-            $this->addActivePct(
-                $activePct,
-                $evaluation['stage_one']
-            );
+            foreach ($evaluation['checkpoints'] as $key => $checkpoint) {
+                $this->addActivePct(
+                    $activePct,
+                    $checkpoint
+                );
 
-            $this->addActivePct(
-                $activePct,
-                $evaluation['stage_two']
-            );
-
-            $this->addHistoricalPct(
-                $historicalStageOne,
-                $evaluation['stage_one']
-            );
-
-            $this->addHistoricalPct(
-                $historicalStageTwo,
-                $evaluation['stage_two']
-            );
-
-            $this->addSeadoDispositionPctResult(
-                $reportDispositionPct,
-                $evaluation[
-                    'disposition_pct'
-                ]
-            );
+                $this->addHistoricalPct(
+                    $historicalPct[$key],
+                    $checkpoint
+                );
+            }
 
             if (
                 $evaluation[
@@ -156,20 +137,10 @@ class ReportController extends Controller
             }
         }
 
-        $historicalStageOne =
-            $this->finalizeHistoricalSummary(
-                $historicalStageOne
-            );
-
-        $historicalStageTwo =
-            $this->finalizeHistoricalSummary(
-                $historicalStageTwo
-            );
-
-            $reportDispositionPct =
-            $this->finalizeSeadoDispositionPctSummary(
-                $reportDispositionPct
-            );
+        $historicalPct = array_map(
+            fn (array $summary) => $this->finalizeHistoricalSummary($summary),
+            $historicalPct
+        );
 
         $processingSummary = [
             'count' =>
@@ -329,63 +300,27 @@ class ReportController extends Controller
 $seadoPctSummary = null;
 
 if ($selectedSeado !== '') {
-    $stageOneSummary =
-        $this->emptySeadoCheckpointSummary();
-
-    $stageTwoSummary =
-        $this->emptySeadoCheckpointSummary();
-
-    $dispositionPctSummary =
-        $this->emptySeadoDispositionPctSummary();
-
+    $seadoPctSummary = array_fill_keys(
+        PctService::keys(),
+        $this->emptySeadoCheckpointSummary()
+    );
 
     foreach ($allRfas as $rfa) {
         $evaluation =
             $pctService->evaluate($rfa);
 
-        $this->addSeadoCheckpointResult(
-            $stageOneSummary,
-            $evaluation['stage_one']
-        );
-
-        $this->addSeadoCheckpointResult(
-            $stageTwoSummary,
-            $evaluation['stage_two']
-        );
-
-        $this->addSeadoDispositionPctResult(
-            $dispositionPctSummary,
-            $evaluation['disposition_pct']
-        );
+        foreach ($evaluation['checkpoints'] as $key => $checkpoint) {
+            $this->addSeadoCheckpointResult(
+                $seadoPctSummary[$key],
+                $checkpoint
+            );
+        }
     }
 
-
-    $stageOneSummary =
-        $this->finalizeSeadoCheckpointSummary(
-            $stageOneSummary
-        );
-
-    $stageTwoSummary =
-        $this->finalizeSeadoCheckpointSummary(
-            $stageTwoSummary
-        );
-
-    $dispositionPctSummary =
-        $this->finalizeSeadoDispositionPctSummary(
-            $dispositionPctSummary
-        );
-
-
-    $seadoPctSummary = [
-        'stage_one' =>
-            $stageOneSummary,
-
-        'stage_two' =>
-            $stageTwoSummary,
-
-        'disposition' =>
-            $dispositionPctSummary,
-    ];
+    $seadoPctSummary = array_map(
+        fn (array $summary) => $this->finalizeSeadoCheckpointSummary($summary),
+        $seadoPctSummary
+    );
 }
         /*
         |--------------------------------------------------------------------------
@@ -811,14 +746,11 @@ $dispositionSummary = [
             'activePct' =>
                 $activePct,
 
-            'historicalStageOne' =>
-                $historicalStageOne,
+            'historicalPct' =>
+                $historicalPct,
 
-            'historicalStageTwo' =>
-                $historicalStageTwo,
-
-            'reportDispositionPct' =>
-                $reportDispositionPct,
+            'checkpointDefinitions' =>
+                PctService::definitions(),
 
             'processingSummary' =>
                 $processingSummary,
@@ -967,29 +899,33 @@ public function print(
 
             /*
             |--------------------------------------------------------------------------
-            | Overall 30-day disposition PCT
+            | 1st Conference - Date Disposed (30 days)
             |--------------------------------------------------------------------------
             */
 
-            $dispositionPctSummary =
-                $this
-                    ->emptySeadoDispositionPctSummary();
+            $dispositionCheckpoint = $this->emptySeadoCheckpointSummary();
 
             foreach ($recordPct as $pct) {
-                $this
-                    ->addSeadoDispositionPctResult(
-                        $dispositionPctSummary,
-                        $pct[
-                            'disposition_pct'
-                        ]
-                    );
+                $this->addSeadoCheckpointResult(
+                    $dispositionCheckpoint,
+                    $pct['checkpoints'][PctService::CONFERENCE_DISPOSED]
+                );
             }
 
-            $dispositionPctSummary =
-                $this
-                    ->finalizeSeadoDispositionPctSummary(
-                        $dispositionPctSummary
-                    );
+            $dispositionCheckpoint = $this->finalizeSeadoCheckpointSummary(
+                $dispositionCheckpoint
+            );
+
+            $dispositionPctSummary = [
+                'disposed_within' =>
+                    $dispositionCheckpoint['compliant'],
+
+                'disposed_beyond' =>
+                    $dispositionCheckpoint['beyond'],
+
+                'compliance_rate' =>
+                    $dispositionCheckpoint['compliance_rate'],
+            ];
 
 
             /*
@@ -1225,6 +1161,14 @@ public function print(
                     "\xEF\xBB\xBF"
                 );
 
+                $pctHeaders = [];
+
+                foreach (PctService::definitions() as $definition) {
+                    foreach (['Status', 'Days', 'Deadline', 'Overdue Days'] as $part) {
+                        $pctHeaders[] = 'PCT ' . $definition['label'] . ' ' . $part;
+                    }
+                }
+
                 fputcsv(
                     $handle,
                     [
@@ -1247,14 +1191,6 @@ public function print(
                         'Date Assigned to Interviewer',
                         'Date of Interview',
 
-                        'PCT Stage 1 Status',
-                        'PCT Stage 1 Days',
-                        'PCT Stage 1 Deadline',
-
-                        'PCT Stage 2 Status',
-                        'PCT Stage 2 Days',
-                        'PCT Stage 2 Deadline',
-
                         'SEADO',
                         'Date Assigned to SEADO',
 
@@ -1265,11 +1201,7 @@ public function print(
                         'Source Disposition Mode',
                         'Date Disposed',
 
-                        'Disposition PCT Status',
-                        'Disposition PCT Days',
-                        'Disposition PCT Deadline',
-                        'Disposition PCT Remaining Days',
-                        'Disposition PCT Overdue Days',
+                        ...$pctHeaders,
 
                         'Total Processing Days',
 
@@ -1288,25 +1220,14 @@ public function print(
                             $rfa
                         );
 
-                    $stageOne =
-                        $evaluation[
-                            'stage_one'
-                        ];
+                    $pctValues = [];
 
-                    $stageTwo =
-                        $evaluation[
-                            'stage_two'
-                        ];
-
-                    $dispositionPct =
-                        $evaluation[
-                            'disposition_pct'
-                        ];
-
-                    $totalProcessing =
-                        $evaluation[
-                            'total_processing'
-                        ];
+                    foreach ($evaluation['checkpoints'] as $checkpoint) {
+                        $pctValues[] = PctService::statusLabel($checkpoint);
+                        $pctValues[] = $checkpoint['days'];
+                        $pctValues[] = $checkpoint['deadline']?->format('Y-m-d');
+                        $pctValues[] = $checkpoint['overdue_days'];
+                    }
 
                     fputcsv(
                         $handle,
@@ -1337,32 +1258,6 @@ public function print(
                                 ->date_interview
                                 ?->format('Y-m-d'),
 
-                            $this->pctLabel(
-                                $stageOne
-                            ),
-
-                            $stageOne[
-                                'days'
-                            ],
-
-                            $stageOne[
-                                'deadline'
-                            ]
-                                ?->format('Y-m-d'),
-
-                            $this->pctLabel(
-                                $stageTwo
-                            ),
-
-                            $stageTwo[
-                                'days'
-                            ],
-
-                            $stageTwo[
-                                'deadline'
-                            ]
-                                ?->format('Y-m-d'),
-
                             $rfa->seado_name,
 
                             $rfa
@@ -1384,31 +1279,9 @@ public function print(
                                 ->date_disposed
                                 ?->format('Y-m-d'),
 
-                            $dispositionPct[
-                                'status_label'
-                            ]
-                                ?? 'Unavailable',
+                            ...$pctValues,
 
-                            $dispositionPct[
-                                'days'
-                            ],
-
-                            $dispositionPct[
-                                'deadline'
-                            ]
-                                ?->format('Y-m-d'),
-
-                            $dispositionPct[
-                                'remaining_days'
-                            ],
-
-                            $dispositionPct[
-                                'overdue_days'
-                            ],
-
-                            $totalProcessing[
-                                'days'
-                            ],
+                            $evaluation['total_processing']['days'],
 
                             $rfa->workers_involved,
                             $rfa->workers_benefited,
@@ -1844,7 +1717,7 @@ private function addSeadoCheckpointResult(
         /*
          * Within, Nearing and On PCT are
          * all compliant because they are
-         * completed within the 3-day limit.
+         * completed within the checkpoint limit.
          */
 
         if (
@@ -1901,173 +1774,6 @@ private function finalizeSeadoCheckpointSummary(
             (
                 $summary[
                     'compliant'
-                ]
-                /
-                $summary[
-                    'completed'
-                ]
-            ) * 100,
-            1
-        );
-    }
-
-    return $summary;
-}
-
-private function emptySeadoDispositionPctSummary(): array
-{
-    return [
-        /*
-        |--------------------------------------------------------------------------
-        | Active / undisposed
-        |--------------------------------------------------------------------------
-        */
-
-        'active_total' => 0,
-
-        'active_within' => 0,
-        'due_today' => 0,
-        'active_beyond' => 0,
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Completed / disposed
-        |--------------------------------------------------------------------------
-        */
-
-        'completed' => 0,
-
-        'disposed_within' => 0,
-        'disposed_beyond' => 0,
-
-        'compliant' => 0,
-
-        /*
-        |--------------------------------------------------------------------------
-        | Data quality
-        |--------------------------------------------------------------------------
-        */
-
-        'indeterminate' => 0,
-
-        'compliance_rate' => null,
-    ];
-}
-
-private function addSeadoDispositionPctResult(
-    array &$summary,
-    array $pct
-): void {
-    $state =
-        $pct['state']
-        ?? null;
-
-    $status =
-        $pct['status_key']
-        ?? null;
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Active / undisposed RFA
-    |--------------------------------------------------------------------------
-    */
-
-    if ($state === 'active') {
-        $summary[
-            'active_total'
-        ]++;
-
-        if (
-            in_array(
-                $status,
-                [
-                    'active_within',
-                    'due_today',
-                    'active_beyond',
-                ],
-                true
-            )
-        ) {
-            $summary[$status]++;
-        }
-
-        return;
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Completed / disposed RFA
-    |--------------------------------------------------------------------------
-    */
-
-    if ($state === 'completed') {
-        $summary['completed']++;
-
-        if (
-            $status
-            === 'disposed_within'
-        ) {
-            $summary[
-                'disposed_within'
-            ]++;
-
-            $summary[
-                'compliant'
-            ]++;
-        }
-
-        if (
-            $status
-            === 'disposed_beyond'
-        ) {
-            $summary[
-                'disposed_beyond'
-            ]++;
-        }
-
-        return;
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Missing / invalid data
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-        in_array(
-            $state,
-            [
-                'missing_start',
-                'missing_end',
-                'invalid',
-            ],
-            true
-        )
-    ) {
-        $summary[
-            'indeterminate'
-        ]++;
-    }
-}
-
-private function finalizeSeadoDispositionPctSummary(
-    array $summary
-): array {
-    if (
-        $summary['completed']
-        > 0
-    ) {
-        $summary[
-            'compliance_rate'
-        ] = round(
-            (
-                $summary[
-                    'disposed_within'
                 ]
                 /
                 $summary[
@@ -2156,43 +1862,5 @@ private function finalizeSeadoDispositionPctSummary(
         }
 
         return $summary;
-    }
-
-    private function pctLabel(
-        array $checkpoint
-    ): string {
-        if (
-            in_array(
-                $checkpoint['state'],
-                [
-                    'active',
-                    'completed',
-                ],
-                true
-            )
-        ) {
-            return (string) (
-                $checkpoint[
-                    'classification_label'
-                ]
-                ?? ''
-            );
-        }
-
-        return match (
-            $checkpoint['state']
-        ) {
-            'missing_start' =>
-                'Start Date Missing',
-
-            'missing_end' =>
-                'Completion Date Missing',
-
-            'invalid' =>
-                'Invalid Dates',
-
-            default =>
-                'Unavailable',
-        };
     }
 }

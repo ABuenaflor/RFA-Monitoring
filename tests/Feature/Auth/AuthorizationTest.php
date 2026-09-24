@@ -98,15 +98,15 @@ class AuthorizationTest extends TestCase
             ->create();
 
         $this->actingAs($user)
-            ->get('/imports')
+            ->get('/reports')
             ->assertForbidden();
 
         $role->syncPermissions([
-            Permissions::IMPORT_MANAGE,
+            Permissions::REPORTS_VIEW,
         ]);
 
         $this->actingAs($user->fresh())
-            ->get('/imports')
+            ->get('/reports')
             ->assertOk();
     }
 
