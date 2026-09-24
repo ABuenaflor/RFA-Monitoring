@@ -10,7 +10,128 @@ Alpine.start();
 
 document.addEventListener('DOMContentLoaded', () => {
     initializeRfaDistributionChart();
+    initializeFilingTrendChart();
 });
+
+/**
+ * RFAs filed per day, one smooth line per mode of filing.
+ */
+function initializeFilingTrendChart() {
+    const chartElement = document.getElementById('rfaFilingTrendChart');
+
+    if (!chartElement) {
+        return;
+    }
+
+    const trend = JSON.parse(chartElement.dataset.trend ?? '{}');
+
+    const series = (label, values, color, fill) => ({
+        label,
+        data: values ?? [],
+        borderColor: color,
+        backgroundColor: fill ?? color,
+        fill: Boolean(fill),
+        tension: 0.4,
+
+        // Smooth, but never curves above or below the real counts.
+        cubicInterpolationMode: 'monotone',
+        borderWidth: 3,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        pointBorderWidth: 2,
+        pointBackgroundColor: '#ffffff',
+        pointBorderColor: color,
+    });
+
+    new Chart(chartElement, {
+        type: 'line',
+
+        data: {
+            labels: trend.labels ?? [],
+
+            datasets: [
+                series('On-site', trend.onsite, '#2563eb', 'rgba(37, 99, 235, 0.08)'),
+                series('Online', trend.online, '#ea580c'),
+            ],
+        },
+
+        options: {
+            responsive: true,
+
+            maintainAspectRatio: false,
+
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+
+            scales: {
+                x: {
+                    grid: {
+                        display: false,
+                    },
+
+                    ticks: {
+                        color: '#64748b',
+                    },
+                },
+
+                y: {
+                    beginAtZero: true,
+
+                    suggestedMax: 5,
+
+                    grid: {
+                        color: '#f1f5f9',
+                    },
+
+                    border: {
+                        display: false,
+                    },
+
+                    ticks: {
+                        color: '#64748b',
+                        precision: 0,
+                    },
+                },
+            },
+
+            plugins: {
+                legend: {
+                    position: 'bottom',
+
+                    labels: {
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        padding: 20,
+                        color: '#475569',
+
+                        // Hollow legend markers, matching the points.
+                        generateLabels(chart) {
+                            return Chart.defaults.plugins.legend.labels
+                                .generateLabels(chart)
+                                .map((item) => ({
+                                    ...item,
+                                    fillStyle: '#ffffff',
+                                    lineWidth: 2,
+                                }));
+                        },
+                    },
+                },
+
+                tooltip: {
+                    callbacks: {
+                        label(context) {
+                            const value = Number(context.raw);
+
+                            return `${context.dataset.label}: ${value} RFA${value === 1 ? '' : 's'} filed`;
+                        },
+                    },
+                },
+            },
+        },
+    });
+}
 
 function initializeRfaDistributionChart() {
     const chartElement = document.getElementById('rfaDistributionChart');

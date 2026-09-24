@@ -62,8 +62,8 @@ appear in the role-editing matrix:
 
 | Group | Permission key | What it gates |
 |---|---|---|
-| Monitoring & Visibility | `dashboard.view` | The KPI dashboard |
-| | `rfa.view` | The RFA master listing and case detail page |
+| Monitoring & Visibility | `dashboard.view` | The KPI dashboard, including the **RFA Filing Trend** line chart (`DashboardController::filingTrend()`): RFAs filed per day over the last 5 days ending today — reaching back into the previous month when needed — one line for On-site and one for Online (`mode_of_filing`, normalised); filings with no mode are counted in a note, not plotted |
+| | `rfa.view` | The RFA master listing and case detail page. The Total / Pending / Ongoing / Disposed cards on the listing and the Dashboard link to the listing filtered to that group (`?monitoring_bucket=`); without `rfa.view` the dashboard cards are not links |
 | | `pct.view` | The PCT Process Monitoring screen |
 | Case Management | `rfa.manage` | Edit case information, workflow dates, conference dates, add timeline notes |
 | | `rfa.assign` | Assign/reassign interviewer and SEADO |

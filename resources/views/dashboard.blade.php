@@ -72,32 +72,13 @@
 
 @section('content')
 
-<div
-    x-data="{
-        statusModal: false,
-        {{-- importModal: false, --}}
-        selectedStatus: null,
+@php
+    $canViewRfas = auth()->user()->can('rfa.view');
 
-        openStatus(label, count, percentage) {
-            this.selectedStatus = {
-                label: label,
-                count: count,
-                percentage: percentage
-            };
+    $cardTag = $canViewRfas ? 'a' : 'div';
+@endphp
 
-            this.statusModal = true;
-        }
-    }"
-
-    @keydown.escape.window="
-    statusModal = false
-"
-
-    @keydown.escape.window="
-        statusModal = false;
-        importModal = false;
-    "
->
+<div>
 
     {{-- ========================================================= --}}
     {{-- DASHBOARD INTRO --}}
@@ -139,11 +120,17 @@
         </div>
 
 
-        <div
-            class="w-fit rounded-xl
+        <{{ $cardTag }}
+            @if ($canViewRfas)
+                href="{{ route('listing') }}#rfa-records"
+                title="View all RFAs"
+            @endif
+            class="block w-fit rounded-xl
                    border border-slate-200
                    bg-white px-5 py-3
-                   shadow-sm"
+                   shadow-sm transition
+                   hover:-translate-y-0.5
+                   hover:shadow-md"
         >
 
             <p
@@ -161,7 +148,7 @@
                 {{ number_format($total) }}
             </p>
 
-        </div>
+        </{{ $cardTag }}>
 
     </div>
 
@@ -177,16 +164,11 @@
 
         {{-- PENDING --}}
 
-        <button
-            type="button"
-
-            @click="
-                openStatus(
-                    'Pending RFAs',
-                    {{ $counts['pending'] }},
-                    {{ $percentages['pending'] }}
-                )
-            "
+        <{{ $cardTag }}
+            @if ($canViewRfas)
+                href="{{ route('listing', ['monitoring_bucket' => 'pending']) }}#rfa-records"
+                title="View all pending RFAs"
+            @endif
 
             class="group relative
                    overflow-hidden
@@ -239,6 +221,16 @@
                         of all RFAs
                     </p>
 
+                    @if ($canViewRfas)
+                        <p
+                            class="mt-3 text-xs font-semibold
+                                   text-slate-400
+                                   group-hover:text-slate-700"
+                        >
+                            View list →
+                        </p>
+                    @endif
+
                 </div>
 
 
@@ -274,21 +266,16 @@
 
             </div>
 
-        </button>
+        </{{ $cardTag }}>
 
 
         {{-- ONGOING --}}
 
-        <button
-            type="button"
-
-            @click="
-                openStatus(
-                    'Ongoing RFAs',
-                    {{ $counts['ongoing'] }},
-                    {{ $percentages['ongoing'] }}
-                )
-            "
+        <{{ $cardTag }}
+            @if ($canViewRfas)
+                href="{{ route('listing', ['monitoring_bucket' => 'ongoing']) }}#rfa-records"
+                title="View all ongoing RFAs"
+            @endif
 
             class="group relative
                    overflow-hidden
@@ -341,6 +328,16 @@
                         of all RFAs
                     </p>
 
+                    @if ($canViewRfas)
+                        <p
+                            class="mt-3 text-xs font-semibold
+                                   text-slate-400
+                                   group-hover:text-slate-700"
+                        >
+                            View list →
+                        </p>
+                    @endif
+
                 </div>
 
 
@@ -376,21 +373,16 @@
 
             </div>
 
-        </button>
+        </{{ $cardTag }}>
 
 
         {{-- DISPOSED --}}
 
-        <button
-            type="button"
-
-            @click="
-                openStatus(
-                    'Disposed RFAs',
-                    {{ $counts['disposed'] }},
-                    {{ $percentages['disposed'] }}
-                )
-            "
+        <{{ $cardTag }}
+            @if ($canViewRfas)
+                href="{{ route('listing', ['monitoring_bucket' => 'disposed']) }}#rfa-records"
+                title="View all disposed RFAs"
+            @endif
 
             class="group relative
                    overflow-hidden
@@ -443,6 +435,16 @@
                         of all RFAs
                     </p>
 
+                    @if ($canViewRfas)
+                        <p
+                            class="mt-3 text-xs font-semibold
+                                   text-slate-400
+                                   group-hover:text-slate-700"
+                        >
+                            View list →
+                        </p>
+                    @endif
+
                 </div>
 
 
@@ -479,7 +481,75 @@
 
             </div>
 
-        </button>
+        </{{ $cardTag }}>
+
+    </section>
+
+
+    {{-- ========================================================= --}}
+    {{-- FILING TREND --}}
+    {{-- ========================================================= --}}
+
+    <section
+        class="mt-8 rounded-2xl
+               border border-slate-200
+               bg-white p-6 shadow-sm"
+    >
+
+        <div
+            class="flex flex-col gap-2
+                   sm:flex-row sm:items-start
+                   sm:justify-between"
+        >
+
+            <div>
+
+                <p
+                    class="text-xs font-bold
+                           uppercase tracking-[0.15em]
+                           text-slate-500"
+                >
+                    Activity
+                </p>
+
+                <h3
+                    class="mt-1 text-lg font-bold
+                           text-slate-950"
+                >
+                    RFA Filing Trend
+                </h3>
+
+            </div>
+
+            <p class="text-sm text-slate-500">
+                RFAs filed per day, on-site and online ·
+                {{ $filingTrend['from'] }} – {{ $filingTrend['to'] }}
+            </p>
+
+        </div>
+
+
+        <div class="relative mt-6 h-[300px] w-full">
+
+            <canvas
+                id="rfaFilingTrendChart"
+                role="img"
+                aria-label="Line chart of RFAs filed per day from {{ $filingTrend['from'] }} to {{ $filingTrend['to'] }}: on-site {{ implode(', ', $filingTrend['onsite']) }}; online {{ implode(', ', $filingTrend['online']) }}."
+                data-trend="{{ json_encode($filingTrend) }}"
+            ></canvas>
+
+        </div>
+
+
+        @if ($filingTrend['unplotted'] > 0)
+            @php
+                $one = $filingTrend['unplotted'] === 1;
+            @endphp
+
+            <p class="mt-4 text-xs text-slate-400">
+                {{ number_format($filingTrend['unplotted']) }} {{ $one ? 'RFA' : 'RFAs' }} filed in this period {{ $one ? 'has' : 'have' }} no mode of filing and {{ $one ? 'is' : 'are' }} not shown.
+            </p>
+        @endif
 
     </section>
 
@@ -608,156 +678,6 @@
     </section>
 
 
-    {{-- ========================================================= --}}
-    {{-- STATUS SUMMARY MODAL --}}
-    {{-- ========================================================= --}}
-
-    <div
-        x-cloak
-        x-show="statusModal"
-        x-transition.opacity
-
-        class="fixed inset-0 z-[70]
-               flex items-center
-               justify-center p-4"
-    >
-
-        <div
-            class="absolute inset-0
-                   bg-slate-950/50
-                   backdrop-blur-sm"
-
-            @click="statusModal = false"
-        ></div>
-
-
-        <div
-            x-show="statusModal"
-
-            x-transition:enter="
-                transition duration-200 ease-out
-            "
-
-            x-transition:enter-start="
-                scale-95 opacity-0
-            "
-
-            x-transition:enter-end="
-                scale-100 opacity-100
-            "
-
-            class="relative w-full
-                   max-w-md rounded-2xl
-                   bg-white p-6
-                   shadow-2xl"
-        >
-
-            <p
-                class="text-xs font-semibold
-                       uppercase tracking-wider
-                       text-blue-600"
-            >
-                RFA Summary
-            </p>
-
-            <h3
-                class="mt-2 text-xl
-                       font-bold text-slate-950"
-
-                x-text="selectedStatus?.label"
-            ></h3>
-
-
-            <div
-                class="mt-6 grid
-                       grid-cols-2 gap-4"
-            >
-
-                <div
-                    class="rounded-xl
-                           bg-slate-50 p-4"
-                >
-
-                    <p
-                        class="text-xs uppercase
-                               tracking-wider
-                               text-slate-400"
-                    >
-                        Records
-                    </p>
-
-                    <p
-                        class="mt-2 text-3xl
-                               font-bold text-slate-950"
-
-                        x-text="
-                            selectedStatus?.count ?? 0
-                        "
-                    ></p>
-
-                </div>
-
-
-                <div
-                    class="rounded-xl
-                           bg-slate-50 p-4"
-                >
-
-                    <p
-                        class="text-xs uppercase
-                               tracking-wider
-                               text-slate-400"
-                    >
-                        Percentage
-                    </p>
-
-                    <p
-                        class="mt-2 text-3xl
-                               font-bold text-blue-600"
-                    >
-                        <span
-                            x-text="
-                                selectedStatus?.percentage
-                                ?? 0
-                            "
-                        ></span>%
-                    </p>
-
-                </div>
-
-            </div>
-
-
-            <div
-                class="mt-6 flex justify-end"
-            >
-
-                <button
-                    type="button"
-
-                    @click="
-                        statusModal = false
-                    "
-
-                    class="rounded-xl bg-slate-900
-                           px-5 py-2.5
-                           text-sm font-semibold
-                           text-white transition
-                           hover:bg-slate-700"
-                >
-                    Close
-                </button>
-
-            </div>
-
-        </div>
-
-    </div>
-
-
-
-
-    </div>
 
 </div>
 
