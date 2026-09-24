@@ -37,7 +37,7 @@
             >
                 Monitor active processing timers and
                 preserve historical PCT results for the
-                two three-day RFA processing checkpoints.
+                five RFA processing checkpoints.
             </p>
 
             <p
@@ -52,28 +52,137 @@
                     {{ $asOf->format('F d, Y') }}
                 </span>
                 · Calendar-day calculation
+                ·
+                <span
+                    class="font-semibold
+                           text-slate-600"
+                >
+                    {{ $officeLabel ?? 'All offices' }}
+                </span>
             </p>
 
         </div>
 
 
         <div
-            class="rounded-xl
-                   border border-slate-200
-                   bg-white px-4 py-3
-                   text-xs
-                   leading-5
-                   text-slate-500
-                   shadow-sm"
+            class="flex flex-col gap-3
+                   sm:flex-row sm:items-end"
         >
-            <strong class="text-slate-700">
-                PCT Rule:
-            </strong>
 
-            0–1 Within ·
-            2 Nearing ·
-            3 On PCT ·
-            &gt;3 Beyond
+            {{-- Office filter: applies to the whole page --}}
+
+            <form
+                method="GET"
+                action="{{ route('pct-process') }}"
+            >
+
+                @foreach ([
+                    'search' => $search,
+                    'stage' => $stageFilter,
+                    'pct_status' => $classificationFilter,
+                ] as $name => $value)
+                    @if ($value !== '')
+                        <input
+                            type="hidden"
+                            name="{{ $name }}"
+                            value="{{ $value }}"
+                        >
+                    @endif
+                @endforeach
+
+                <label
+                    for="office"
+                    class="mb-1 block
+                           text-xs font-semibold
+                           text-slate-600"
+                >
+                    Office
+                </label>
+
+                <select
+                    id="office"
+                    name="office"
+                    onchange="this.form.submit()"
+                    class="w-full rounded-xl
+                           border border-slate-300
+                           bg-white px-4 py-2.5
+                           text-sm
+                           outline-none
+                           focus:border-blue-500
+                           focus:ring-4
+                           focus:ring-blue-100
+                           sm:w-64"
+                >
+
+                    <option value="">
+                        All Offices
+                    </option>
+
+                    @foreach ($offices as $label => $code)
+                        <option
+                            value="{{ $code }}"
+                            @selected($officeFilter === $code)
+                        >
+                            {{ $label }} ({{ $code }})
+                        </option>
+                    @endforeach
+
+                </select>
+
+                <noscript>
+                    <button
+                        type="submit"
+                        class="mt-2 rounded-xl
+                               bg-slate-950
+                               px-4 py-2
+                               text-xs font-semibold
+                               text-white"
+                    >
+                        Apply
+                    </button>
+                </noscript>
+
+            </form>
+
+
+            <div
+                class="rounded-xl
+                       border border-slate-200
+                       bg-white px-4 py-3
+                       text-xs
+                       leading-5
+                       text-slate-500
+                       shadow-sm"
+            >
+                <strong class="text-slate-700">
+                    PCT Rules
+                </strong>
+
+                <ol class="mt-1 list-decimal pl-4">
+                    @foreach ($checkpointDefinitions as $definition)
+                        <li>
+                            {{ $definition['label'] }}:
+                            <span class="font-semibold text-slate-700">
+                                {{ $definition['limit_label'] }}
+                            </span>
+                        </li>
+                    @endforeach
+                </ol>
+
+                <p class="mt-1 text-slate-400">
+                    Deadline day = On PCT · past it = Beyond ·
+                    day before (last 3 days on 10/30-day rules) = Nearing
+                </p>
+
+                <a
+                    href="{{ route('pct-cycle-time', array_filter(['office' => $officeFilter])) }}"
+                    class="mt-1 inline-block font-semibold
+                           text-blue-600 hover:text-blue-700"
+                >
+                    See how the process runs →
+                </a>
+            </div>
+
         </div>
 
     </section>
@@ -107,175 +216,127 @@
         </div>
 
 
+        @php
+            $statusCards = [
+                [
+                    'key' => '',
+                    'label' => 'Active Timers',
+                    'count' => $activeSummary['total'],
+                    'box' => 'border-slate-200 bg-white',
+                    'title' => 'text-slate-400',
+                    'value' => 'text-slate-950',
+                    'ring' => 'ring-slate-400',
+                    'hint' => 'View all active',
+                ],
+                [
+                    'key' => 'within',
+                    'label' => 'Within PCT',
+                    'count' => $activeSummary['within'],
+                    'box' => 'border-emerald-200 bg-emerald-50',
+                    'title' => 'text-emerald-600',
+                    'value' => 'text-emerald-900',
+                    'ring' => 'ring-emerald-500',
+                    'hint' => 'View list',
+                ],
+                [
+                    'key' => 'nearing',
+                    'label' => 'Nearing PCT',
+                    'count' => $activeSummary['nearing'],
+                    'box' => 'border-amber-200 bg-amber-50',
+                    'title' => 'text-amber-600',
+                    'value' => 'text-amber-900',
+                    'ring' => 'ring-amber-500',
+                    'hint' => 'View list',
+                ],
+                [
+                    'key' => 'on',
+                    'label' => 'On PCT',
+                    'count' => $activeSummary['on'],
+                    'box' => 'border-orange-200 bg-orange-50',
+                    'title' => 'text-orange-600',
+                    'value' => 'text-orange-900',
+                    'ring' => 'ring-orange-500',
+                    'hint' => 'View list',
+                ],
+                [
+                    'key' => 'beyond',
+                    'label' => 'Beyond PCT',
+                    'count' => $activeSummary['beyond'],
+                    'box' => 'border-red-200 bg-red-50',
+                    'title' => 'text-red-600',
+                    'value' => 'text-red-900',
+                    'ring' => 'ring-red-500',
+                    'hint' => 'View list',
+                ],
+            ];
+        @endphp
+
         <div
             class="grid grid-cols-2
                    gap-4
                    xl:grid-cols-5"
         >
 
-            <div
-                class="rounded-2xl
-                       border border-slate-200
-                       bg-white p-5
-                       shadow-sm"
-            >
+            @foreach ($statusCards as $card)
 
-                <p
-                    class="text-xs font-bold
-                           uppercase
-                           tracking-wider
-                           text-slate-400"
+                @php
+                    $isSelected =
+                        $classificationFilter === $card['key'];
+
+                    /*
+                    | A card shows its whole group: it keeps the office but
+                    | drops search and checkpoint filters.
+                    */
+
+                    $cardQuery = array_filter([
+                        'office' => $officeFilter,
+                        'pct_status' => $card['key'],
+                    ]);
+                @endphp
+
+                <a
+                    href="{{ route('pct-process', $cardQuery) }}#active-timers"
+                    @if ($isSelected) aria-current="true" @endif
+                    class="group block rounded-2xl
+                           border {{ $card['box'] }} p-5
+                           shadow-sm transition
+                           hover:-translate-y-0.5
+                           hover:shadow-md
+                           focus:outline-none
+                           focus:ring-4 focus:ring-blue-100
+                           {{ $isSelected ? 'ring-2 ' . $card['ring'] : '' }}"
                 >
-                    Active Timers
-                </p>
 
-                <p
-                    class="mt-3 text-3xl
-                           font-bold
-                           text-slate-950"
-                >
-                    {{
-                        number_format(
-                            $activeSummary[
-                                'total'
-                            ]
-                        )
-                    }}
-                </p>
+                    <p
+                        class="text-xs font-bold
+                               uppercase
+                               tracking-wider
+                               {{ $card['title'] }}"
+                    >
+                        {{ $card['label'] }}
+                    </p>
 
-            </div>
+                    <p
+                        class="mt-3 text-3xl
+                               font-bold
+                               {{ $card['value'] }}"
+                    >
+                        {{ number_format($card['count']) }}
+                    </p>
 
+                    <p
+                        class="mt-2 text-xs
+                               font-semibold
+                               {{ $card['title'] }}
+                               opacity-70
+                               group-hover:opacity-100"
+                    >
+                        {{ $isSelected ? 'Showing below' : $card['hint'] . ' →' }}
+                    </p>
 
-            <div
-                class="rounded-2xl
-                       border border-emerald-200
-                       bg-emerald-50 p-5
-                       shadow-sm"
-            >
+                </a>
 
-                <p
-                    class="text-xs font-bold
-                           uppercase
-                           tracking-wider
-                           text-emerald-600"
-                >
-                    Within PCT
-                </p>
-
-                <p
-                    class="mt-3 text-3xl
-                           font-bold
-                           text-emerald-900"
-                >
-                    {{
-                        number_format(
-                            $activeSummary[
-                                'within'
-                            ]
-                        )
-                    }}
-                </p>
-
-            </div>
-
-
-            <div
-                class="rounded-2xl
-                       border border-amber-200
-                       bg-amber-50 p-5
-                       shadow-sm"
-            >
-
-                <p
-                    class="text-xs font-bold
-                           uppercase
-                           tracking-wider
-                           text-amber-600"
-                >
-                    Nearing PCT
-                </p>
-
-                <p
-                    class="mt-3 text-3xl
-                           font-bold
-                           text-amber-900"
-                >
-                    {{
-                        number_format(
-                            $activeSummary[
-                                'nearing'
-                            ]
-                        )
-                    }}
-                </p>
-
-            </div>
-
-
-            <div
-                class="rounded-2xl
-                       border border-orange-200
-                       bg-orange-50 p-5
-                       shadow-sm"
-            >
-
-                <p
-                    class="text-xs font-bold
-                           uppercase
-                           tracking-wider
-                           text-orange-600"
-                >
-                    On PCT
-                </p>
-
-                <p
-                    class="mt-3 text-3xl
-                           font-bold
-                           text-orange-900"
-                >
-                    {{
-                        number_format(
-                            $activeSummary[
-                                'on'
-                            ]
-                        )
-                    }}
-                </p>
-
-            </div>
-
-
-            <div
-                class="rounded-2xl
-                       border border-red-200
-                       bg-red-50 p-5
-                       shadow-sm"
-            >
-
-                <p
-                    class="text-xs font-bold
-                           uppercase
-                           tracking-wider
-                           text-red-600"
-                >
-                    Beyond PCT
-                </p>
-
-                <p
-                    class="mt-3 text-3xl
-                           font-bold
-                           text-red-900"
-                >
-                    {{
-                        number_format(
-                            $activeSummary[
-                                'beyond'
-                            ]
-                        )
-                    }}
-                </p>
-
-            </div>
+            @endforeach
 
         </div>
 
@@ -300,6 +361,14 @@
                    gap-4
                    md:grid-cols-4"
         >
+
+            @if ($officeFilter !== '')
+                <input
+                    type="hidden"
+                    name="office"
+                    value="{{ $officeFilter }}"
+                >
+            @endif
 
             <div
                 class="md:col-span-2"
@@ -363,25 +432,14 @@
                         All Checkpoints
                     </option>
 
-                    <option
-                        value="assignment"
-                        @selected(
-                            $stageFilter
-                            === 'assignment'
-                        )
-                    >
-                        Filed → Assignment
-                    </option>
-
-                    <option
-                        value="interview"
-                        @selected(
-                            $stageFilter
-                            === 'interview'
-                        )
-                    >
-                        Assignment → Interview
-                    </option>
+                    @foreach ($checkpointDefinitions as $key => $definition)
+                        <option
+                            value="{{ $key }}"
+                            @selected($stageFilter === $key)
+                        >
+                            {{ $definition['label'] }}
+                        </option>
+                    @endforeach
 
                 </select>
 
@@ -472,7 +530,7 @@
             >
 
                 <a
-                    href="{{ route('pct-process') }}"
+                    href="{{ route('pct-process', $officeFilter !== '' ? ['office' => $officeFilter] : []) }}"
                     class="inline-flex
                            justify-center
                            rounded-xl
@@ -512,31 +570,83 @@
     {{-- ========================================================= --}}
 
     <section
-        class="overflow-hidden
+        id="active-timers"
+        class="scroll-mt-6
+               overflow-hidden
                rounded-2xl
                border border-slate-200
                bg-white shadow-sm"
     >
 
         <div
-            class="border-b
+            class="flex flex-col gap-3
+                   border-b
                    border-slate-100
-                   px-6 py-5"
+                   px-6 py-5
+                   sm:flex-row
+                   sm:items-start
+                   sm:justify-between"
         >
 
-            <h2
-                class="font-bold
-                       text-slate-950"
-            >
-                Cases Requiring PCT Monitoring
-            </h2>
+            <div>
 
-            <p
-                class="mt-1 text-sm
-                       text-slate-500"
-            >
-                Active timers are sorted by urgency.
-            </p>
+                <h2
+                    class="font-bold
+                           text-slate-950"
+                >
+                    Cases Requiring PCT Monitoring
+                </h2>
+
+                <p
+                    class="mt-1 text-sm
+                           text-slate-500"
+                >
+                    Active timers are sorted by urgency.
+                </p>
+
+            </div>
+
+            @php
+                $statusLabels = [
+                    'within' => 'Within PCT',
+                    'nearing' => 'Nearing PCT',
+                    'on' => 'On PCT',
+                    'beyond' => 'Beyond PCT',
+                ];
+            @endphp
+
+            @if (isset($statusLabels[$classificationFilter]))
+
+                <div
+                    class="flex items-center gap-3
+                           text-sm"
+                >
+
+                    <span
+                        class="rounded-full
+                               bg-slate-100
+                               px-3 py-1
+                               font-semibold
+                               text-slate-700"
+                    >
+                        Showing:
+                        {{ $statusLabels[$classificationFilter] }}
+                        · {{ number_format($activePaginator->total()) }}
+                        {{ \Illuminate\Support\Str::plural('case', $activePaginator->total()) }}
+                    </span>
+
+                    <a
+                        href="{{ route('pct-process', array_filter(['office' => $officeFilter])) }}#active-timers"
+                        class="font-semibold
+                               text-blue-600
+                               hover:text-blue-700"
+                    >
+                        Show all
+                    </a>
+
+                </div>
+
+            @endif
 
         </div>
 
@@ -807,8 +917,8 @@
 
                                     @if (
                                         $checkpoint[
-                                            'remaining_days'
-                                        ] < 0
+                                            'overdue_days'
+                                        ] > 0
                                     )
 
                                         <div
@@ -816,11 +926,9 @@
                                                    text-red-600"
                                         >
                                             {{
-                                                abs(
-                                                    $checkpoint[
-                                                        'remaining_days'
-                                                    ]
-                                                )
+                                                $checkpoint[
+                                                    'overdue_days'
+                                                ]
                                             }}
                                             day(s) overdue
                                         </div>
@@ -952,18 +1060,11 @@
                    xl:grid-cols-2"
         >
 
-            @foreach (
-                [
-                    'stage_one' =>
-                        'Date Filed → Interviewer Assignment',
-
-                    'stage_two' =>
-                        'Interviewer Assignment → Date of Interview',
-                ]
-                as $key => $label
-            )
+            @foreach ($checkpointDefinitions as $key => $definition)
 
                 @php
+                    $label = $definition['label'];
+
                     $summary =
                         $historicalSummary[
                             $key
@@ -1040,7 +1141,7 @@
                                 class="text-xs
                                        text-slate-500"
                             >
-                                within 3 days
+                                within {{ strtolower($definition['limit_label']) }}
                             </div>
 
                         </div>
@@ -1212,8 +1313,8 @@
                        text-slate-500"
             >
                 This is tracked separately from the
-                two three-day PCT checkpoints and
-                currently has no overall PCT limit.
+                five PCT checkpoints and is not rated
+                against a limit.
             </p>
 
         </div>
@@ -1376,7 +1477,7 @@
         <div class="overflow-x-auto">
 
             <table
-                class="min-w-[1100px]
+                class="min-w-[1400px]
                        w-full
                        divide-y
                        divide-slate-200"
@@ -1396,25 +1497,17 @@
                             Docket / Reference
                         </th>
 
-                        <th
-                            class="px-5 py-3
-                                   text-left
-                                   text-xs font-bold
-                                   uppercase
-                                   text-slate-500"
-                        >
-                            Filed → Assigned
-                        </th>
-
-                        <th
-                            class="px-5 py-3
-                                   text-left
-                                   text-xs font-bold
-                                   uppercase
-                                   text-slate-500"
-                        >
-                            Assigned → Interview
-                        </th>
+                        @foreach ($checkpointDefinitions as $definition)
+                            <th
+                                class="px-5 py-3
+                                       text-left
+                                       text-xs font-bold
+                                       uppercase
+                                       text-slate-500"
+                            >
+                                {{ $definition['short_label'] }}
+                            </th>
+                        @endforeach
 
                         <th
                             class="px-5 py-3
@@ -1479,14 +1572,7 @@
 
 
                             @foreach (
-                                [
-                                    $item[
-                                        'stage_one'
-                                    ],
-                                    $item[
-                                        'stage_two'
-                                    ],
-                                ]
+                                $item['checkpoints']
                                 as $checkpoint
                             )
 
@@ -1576,7 +1662,7 @@
                                             class="text-xs
                                                    text-slate-400"
                                         >
-                                            Unavailable
+                                            {{ \App\Services\PctService::statusLabel($checkpoint) }}
                                         </span>
 
                                     @endif
@@ -1630,7 +1716,7 @@
                         <tr>
 
                             <td
-                                colspan="4"
+                                colspan="{{ count($checkpointDefinitions) + 2 }}"
                                 class="px-6 py-12
                                        text-center
                                        text-sm

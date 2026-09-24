@@ -15,6 +15,8 @@
 
 @section('page_actions')
 
+    @can('import.manage')
+
     <a
         href="{{ route('imports.index') }}"
 
@@ -62,6 +64,8 @@
         </span>
 
     </a>
+
+    @endcan
 
 @endsection
 

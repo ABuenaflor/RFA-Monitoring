@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Rfa;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -359,13 +358,15 @@ class UserController extends Controller
                 ],
 
             'office' =>
-                ['nullable', 'string', 'max:50'],
+                ['nullable', 'string', Rule::in($this->officeOptions())],
 
             'position' =>
                 ['nullable', 'string', 'max:100'],
 
             'status' =>
                 ['required', 'in:active,inactive'],
+        ], [
+            'office.in' => 'Choose an office from the list.',
         ]);
     }
 
@@ -389,19 +390,12 @@ class UserController extends Controller
     }
 
     /**
-     * Offices already present in the RFA data, so user assignment stays
-     * aligned with the operational records.
+     * The fixed list of offices (config/offices.php).
      *
      * @return array<int, string>
      */
     private function officeOptions(): array
     {
-        return Rfa::query()
-            ->whereNotNull('office')
-            ->where('office', '!=', '')
-            ->distinct()
-            ->orderBy('office')
-            ->pluck('office')
-            ->all();
+        return array_keys(config('offices.list', []));
     }
 }

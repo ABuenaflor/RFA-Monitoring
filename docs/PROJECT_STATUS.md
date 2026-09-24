@@ -1,6 +1,6 @@
 # RFA Monitoring System — Project Status
 
-**Updated:** 2026-09-14
+**Updated:** 2026-09-24
 
 ## Phase status
 
@@ -25,6 +25,37 @@
 | 10 | Administration / Governance / Backup | Complete |
 | 11 | QA / UAT / Security / Deployment / Handover | Complete |
 
+## Enhancement phases (requested 2026-09-21 / 2026-09-24)
+
+| Phase | Scope | Status |
+| --- | --- | --- |
+| A | Email PCT alerts (digest to the assigned officer, once per level) | Complete — **off until SMTP is configured** (`PCT_EMAIL_ENABLED`) |
+| B | Office dropdown on Add/Edit User (Regional Office + 6 PFOs, `config/offices.php`) | Complete |
+| C | CSV import restricted to the Administrator; imported records visible to all | Complete |
+| D | Office filter on PCT Process (whole page) | Complete |
+| E | Clickable Within / Nearing / On / Beyond cards on PCT Process | Complete |
+| F | Process Cycle Time page (PCT Process → Process Cycle Time) | Complete |
+| G | Clickable Pending / Ongoing / Disposed cards on the RFA listing | **Remaining** |
+| H | Dashboard line chart: RFAs filed per day, On-site vs Online | **Remaining** |
+| I | PCT rules replaced by the five named checkpoints | Complete |
+
+### Remaining phases
+
+**G — Clickable listing cards.** On the RFA listing, clicking Pending, Ongoing
+or Disposed shows every RFA with that status. The listing already has a status
+filter with the same values, so each card links to it (keep other filters),
+built the same way as the PCT cards in Phase E. Open question: should the
+dashboard's cards be clickable too?
+
+**H — Dashboard filing chart.** A smooth line chart on the Dashboard showing
+how many RFAs were filed each day (`date_filed`), one line for On-site and one
+for Online (`mode_of_filing`), zero-filled for days with no filings, using the
+Chart.js already on the dashboard. Style: white card, small uppercase label
+over a bold title, curved lines with hollow point markers, light fill under
+one series, legend centred below. Range: 5 days of the current month. Open
+question: near the start of a month (e.g. the 2nd), show only the days so far
+or reach back into the previous month?
+
 Phases 7–11 are implemented, tested and verified against the live database.
 Phase 11 provides the UAT plan and sign-off register; **user acceptance testing
 itself is still to be performed** by the organisation — the system records it
@@ -34,7 +65,7 @@ rather than replacing it.
 
 | Item | Result |
 | --- | --- |
-| Automated tests | 142 passing, 430 assertions |
+| Automated tests | 187 passing (2026-09-24) |
 | Live records | 534 RFAs in `rfa_monitoring` |
 | Routes reachable | All 17 authenticated screens return 200 for an administrator |
 | Print report | Renders every matching record at exact 13in × 8in |
@@ -57,15 +88,28 @@ These are deliberate, not defects:
 5. **Scheduler not yet installed** — `rfa:scan-pct` runs on demand. Install the
    Task Scheduler entry from `docs/DEPLOYMENT.md` for the daily 07:00 scan.
 6. **UAT not yet executed** — 38 cases await results in `Release Readiness`.
+7. **Run `php artisan migrate`** — Phase A added the `pct_email_deliveries`
+   table.
+8. **Email alerts need a mail server** — set `MAIL_MAILER=smtp` and its
+   settings, then `PCT_EMAIL_ENABLED=true`.
+9. **No case has a Date of Interview** — the CSV has no interview date, so
+   "Date Interviewed - SEADO Assignment" cannot be measured and
+   "Interviewer Assignment - Date Interviewed" mostly reads Completion Date
+   Missing. 47 cases also have no mode of filing.
 
 ## Business rules that must not be changed casually
 
-- Stage 1: Date Filed → Date Assigned to Interviewer, maximum 3 calendar days
-- Stage 2: Date Assigned to Interviewer → Date of Interview, maximum 3 calendar
-  days
-- Classification: 0–1 Within, 2 Nearing, 3 On PCT, over 3 Beyond
-- Disposition: Date Filed → Date Disposed, maximum 30 calendar days, **day 30
-  is compliant**
+- Five checkpoints (`PctService::definitions()`):
+  1. Date Filed - Interviewer Assignment — on-site: same day, online: 2 days
+  2. Interviewer Assignment - Date Interviewed — 3 days
+  3. Date Interviewed - SEADO Assignment — 3 days
+  4. SEADO Assignment - 1st Conference — 10 days
+  5. 1st Conference - Date Disposed — 30 days
+- Calendar days, start day = day 0. The deadline day is **On PCT** and
+  compliant; past it is Beyond. Nearing is the day before the deadline, or the
+  last 3 days for the 10- and 30-day rules. On-site day 0 is On PCT.
+- A blank mode of filing is **not rated** on checkpoint 1 (Mode of Filing
+  Missing)
 - A case marked disposed with no Date Disposed is **indeterminate**, never an
   ageing active timer
 - Official `disposition_status` and raw source `disposition_mode` are separate

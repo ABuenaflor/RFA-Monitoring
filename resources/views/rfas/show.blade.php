@@ -270,158 +270,74 @@
 
         </div>
 
-
         <div
             class="grid grid-cols-1 gap-4
-                   xl:grid-cols-3"
+                   md:grid-cols-2 xl:grid-cols-5"
         >
 
-            {{-- STAGE 1 --}}
+            @foreach ($pct['checkpoints'] as $checkpoint)
 
-            <div
-                class="rounded-2xl
-                       border border-blue-200
-                       bg-blue-50 p-5 shadow-sm"
-            >
+                @php
+                    $rated = in_array(
+                        $checkpoint['state'],
+                        ['active', 'completed'],
+                        true
+                    );
 
-                <p
-                    class="text-xs font-bold
-                           uppercase text-blue-700"
+                    $tone = $rated
+                        ? $checkpoint['classification_key']
+                        : 'unrated';
+                @endphp
+
+                <div
+                    @class([
+                        'rounded-2xl border p-5 shadow-sm',
+                        'border-emerald-200 bg-emerald-50' => $tone === 'within',
+                        'border-amber-200 bg-amber-50' => $tone === 'nearing',
+                        'border-orange-200 bg-orange-50' => $tone === 'on',
+                        'border-rose-200 bg-rose-50' => $tone === 'beyond',
+                        'border-slate-200 bg-slate-50' => $tone === 'unrated',
+                    ])
                 >
-                    Stage 1 &middot; 3-Day PCT
-                </p>
 
-                <h3 class="mt-2 font-bold text-blue-950">
-                    Filed &rarr; Interviewer Assignment
-                </h3>
+                    <p
+                        class="text-xs font-bold
+                               uppercase text-slate-600"
+                    >
+                        {{ $loop->iteration }} &middot; {{ $checkpoint['limit_label'] }}
+                    </p>
 
-                <p
-                    class="mt-4 text-2xl
-                           font-bold text-blue-950"
-                >
-                    {{ $pct['stage_one']['classification_label'] ?? 'Not Available' }}
-                </p>
+                    <h3 class="mt-2 font-bold text-slate-950">
+                        {{ $checkpoint['stage_label'] }}
+                    </h3>
 
-                <p class="mt-1 text-xs text-blue-700">
-                    @if ($pct['stage_one']['days'] !== null)
-                        {{ $pct['stage_one']['days'] }} day(s)
-                    @else
-                        No elapsed measurement
-                    @endif
-                </p>
+                    <p
+                        class="mt-4 text-2xl
+                               font-bold text-slate-950"
+                    >
+                        {{ \App\Services\PctService::statusLabel($checkpoint) }}
+                    </p>
 
-                <p
-                    class="mt-3 text-xs
-                           leading-5 text-blue-800"
-                >
-                    {{ $pct['stage_one']['message'] }}
-                </p>
+                    <p class="mt-1 text-xs text-slate-600">
+                        @if ($checkpoint['days'] !== null)
+                            {{ $checkpoint['days'] }} day(s)
+                            &middot;
+                            {{ $checkpoint['state'] === 'active' ? 'running' : 'completed' }}
+                        @else
+                            No elapsed measurement
+                        @endif
+                    </p>
 
-            </div>
+                    <p
+                        class="mt-3 text-xs
+                               leading-5 text-slate-700"
+                    >
+                        {{ $checkpoint['message'] }}
+                    </p>
 
+                </div>
 
-            {{-- STAGE 2 --}}
-
-            <div
-                class="rounded-2xl
-                       border border-violet-200
-                       bg-violet-50 p-5 shadow-sm"
-            >
-
-                <p
-                    class="text-xs font-bold
-                           uppercase text-violet-700"
-                >
-                    Stage 2 &middot; 3-Day PCT
-                </p>
-
-                <h3 class="mt-2 font-bold text-violet-950">
-                    Assignment &rarr; Interview
-                </h3>
-
-                <p
-                    class="mt-4 text-2xl
-                           font-bold text-violet-950"
-                >
-                    {{ $pct['stage_two']['classification_label'] ?? 'Not Available' }}
-                </p>
-
-                <p class="mt-1 text-xs text-violet-700">
-                    @if ($pct['stage_two']['days'] !== null)
-                        {{ $pct['stage_two']['days'] }} day(s)
-                    @else
-                        No elapsed measurement
-                    @endif
-                </p>
-
-                <p
-                    class="mt-3 text-xs
-                           leading-5 text-violet-800"
-                >
-                    {{ $pct['stage_two']['message'] }}
-                </p>
-
-            </div>
-
-
-            {{-- DISPOSITION PCT --}}
-
-            @php
-                $dispositionKey = $pct['disposition_pct']['status_key'];
-            @endphp
-
-            <div
-                @class([
-                    'rounded-2xl border p-5 shadow-sm',
-
-                    'border-emerald-200 bg-emerald-50'
-                        => in_array($dispositionKey, ['disposed_within', 'active_within'], true),
-
-                    'border-amber-200 bg-amber-50'
-                        => $dispositionKey === 'due_today',
-
-                    'border-rose-200 bg-rose-50'
-                        => in_array($dispositionKey, ['disposed_beyond', 'active_beyond'], true),
-
-                    'border-slate-200 bg-slate-50'
-                        => $dispositionKey === 'indeterminate',
-                ])
-            >
-
-                <p
-                    class="text-xs font-bold
-                           uppercase text-slate-600"
-                >
-                    Overall Disposition &middot; 30-Day PCT
-                </p>
-
-                <h3 class="mt-2 font-bold text-slate-950">
-                    Filed &rarr; Disposed
-                </h3>
-
-                <p
-                    class="mt-4 text-2xl
-                           font-bold text-slate-950"
-                >
-                    {{ $pct['disposition_pct']['status_label'] }}
-                </p>
-
-                <p class="mt-1 text-xs text-slate-600">
-                    @if ($pct['disposition_pct']['days'] !== null)
-                        {{ $pct['disposition_pct']['days'] }} day(s)
-                    @else
-                        No elapsed measurement
-                    @endif
-                </p>
-
-                <p
-                    class="mt-3 text-xs
-                           leading-5 text-slate-700"
-                >
-                    {{ $pct['disposition_pct']['message'] }}
-                </p>
-
-            </div>
+            @endforeach
 
         </div>
 

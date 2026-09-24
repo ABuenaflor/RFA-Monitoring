@@ -1451,743 +1451,234 @@
                    xl:grid-cols-2"
         >
 
-            {{-- ================================================= --}}
-            {{-- STAGE 1 --}}
-            {{-- ================================================= --}}
+            @foreach ($checkpointDefinitions as $checkpointKey => $definition)
 
-            @php
-                $stageOne =
-                    $seadoPctSummary[
-                        'stage_one'
-                    ];
-            @endphp
-
-            <div
-                class="rounded-2xl
-                       border border-slate-200
-                       bg-white p-6
-                       shadow-sm"
-            >
+                @php
+                    $stageSummary =
+                        $seadoPctSummary[
+                            $checkpointKey
+                        ];
+                @endphp
 
                 <div
-                    class="flex
-                           justify-between
-                           gap-4"
-                >
-
-                    <div>
-
-                        <p
-                            class="text-xs font-bold
-                                   uppercase
-                                   tracking-wide
-                                   text-blue-600"
-                        >
-                            Stage 1
-                        </p>
-
-                        <h3
-                            class="mt-1
-                                   font-bold
-                                   text-slate-950"
-                        >
-                            Filed → Interviewer Assignment
-                        </h3>
-
-                    </div>
-
-
-                    <div
-                        class="text-right"
-                    >
-
-                        <div
-                            class="text-2xl
-                                   font-bold
-                                   text-slate-950"
-                        >
-                            {{
-                                $stageOne[
-                                    'compliance_rate'
-                                ] !== null
-                                    ? $stageOne[
-                                        'compliance_rate'
-                                    ].'%'
-                                    : '—'
-                            }}
-                        </div>
-
-                        <div
-                            class="text-xs
-                                   text-slate-400"
-                        >
-                            historical compliance
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-                <div
-                    class="mt-5 grid
-                           grid-cols-2 gap-3
-                           sm:grid-cols-4"
-                >
-
-                    @foreach (
-                        [
-                            'within' =>
-                                'Within',
-
-                            'nearing' =>
-                                'Nearing',
-
-                            'on' =>
-                                'On PCT',
-
-                            'beyond' =>
-                                'Beyond',
-                        ]
-                        as $key => $label
-                    )
-
-                        <div
-                            class="rounded-xl
-                                   bg-slate-50
-                                   p-3"
-                        >
-
-                            <p
-                                class="text-xs
-                                       text-slate-500"
-                            >
-                                {{ $label }}
-                            </p>
-
-                            <p
-                                class="mt-1
-                                       text-xl
-                                       font-bold
-                                       text-slate-950"
-                            >
-                                {{
-                                    number_format(
-                                        $stageOne[
-                                            $key
-                                        ]
-                                    )
-                                }}
-                            </p>
-
-                        </div>
-
-                    @endforeach
-
-                </div>
-
-
-                <div
-                    class="mt-4 grid
-                           grid-cols-3 gap-3"
-                >
-
-                    <div
-                        class="rounded-xl
-                               border
-                               border-slate-200
-                               p-3"
-                    >
-                        <p
-                            class="text-xs
-                                   text-slate-500"
-                        >
-                            Completed
-                        </p>
-
-                        <p
-                            class="mt-1
-                                   font-bold
-                                   text-slate-900"
-                        >
-                            {{
-                                $stageOne[
-                                    'completed'
-                                ]
-                            }}
-                        </p>
-                    </div>
-
-
-                    <div
-                        class="rounded-xl
-                               border
-                               border-blue-200
-                               bg-blue-50
-                               p-3"
-                    >
-                        <p
-                            class="text-xs
-                                   text-blue-600"
-                        >
-                            Active
-                        </p>
-
-                        <p
-                            class="mt-1
-                                   font-bold
-                                   text-blue-950"
-                        >
-                            {{
-                                $stageOne[
-                                    'active'
-                                ]
-                            }}
-                        </p>
-                    </div>
-
-
-                    <div
-                        class="rounded-xl
-                               border
-                               border-amber-200
-                               bg-amber-50
-                               p-3"
-                    >
-                        <p
-                            class="text-xs
-                                   text-amber-700"
-                        >
-                            Indeterminate
-                        </p>
-
-                        <p
-                            class="mt-1
-                                   font-bold
-                                   text-amber-950"
-                        >
-                            {{
-                                $stageOne[
-                                    'indeterminate'
-                                ]
-                            }}
-                        </p>
-                    </div>
-
-                </div>
-
-            </div>
-
-
-            {{-- ================================================= --}}
-            {{-- STAGE 2 --}}
-            {{-- ================================================= --}}
-
-            @php
-                $stageTwo =
-                    $seadoPctSummary[
-                        'stage_two'
-                    ];
-            @endphp
-
-            <div
-                class="rounded-2xl
-                       border border-slate-200
-                       bg-white p-6
-                       shadow-sm"
-            >
-
-                <div
-                    class="flex
-                           justify-between
-                           gap-4"
-                >
-
-                    <div>
-
-                        <p
-                            class="text-xs font-bold
-                                   uppercase
-                                   tracking-wide
-                                   text-violet-600"
-                        >
-                            Stage 2
-                        </p>
-
-                        <h3
-                            class="mt-1
-                                   font-bold
-                                   text-slate-950"
-                        >
-                            Assignment → Interview
-                        </h3>
-
-                    </div>
-
-
-                    <div
-                        class="text-right"
-                    >
-
-                        <div
-                            class="text-2xl
-                                   font-bold
-                                   text-slate-950"
-                        >
-                            {{
-                                $stageTwo[
-                                    'compliance_rate'
-                                ] !== null
-                                    ? $stageTwo[
-                                        'compliance_rate'
-                                    ].'%'
-                                    : '—'
-                            }}
-                        </div>
-
-                        <div
-                            class="text-xs
-                                   text-slate-400"
-                        >
-                            historical compliance
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-                <div
-                    class="mt-5 grid
-                           grid-cols-2 gap-3
-                           sm:grid-cols-4"
-                >
-
-                    @foreach (
-                        [
-                            'within' =>
-                                'Within',
-
-                            'nearing' =>
-                                'Nearing',
-
-                            'on' =>
-                                'On PCT',
-
-                            'beyond' =>
-                                'Beyond',
-                        ]
-                        as $key => $label
-                    )
-
-                        <div
-                            class="rounded-xl
-                                   bg-slate-50
-                                   p-3"
-                        >
-
-                            <p
-                                class="text-xs
-                                       text-slate-500"
-                            >
-                                {{ $label }}
-                            </p>
-
-                            <p
-                                class="mt-1
-                                       text-xl
-                                       font-bold
-                                       text-slate-950"
-                            >
-                                {{
-                                    number_format(
-                                        $stageTwo[
-                                            $key
-                                        ]
-                                    )
-                                }}
-                            </p>
-
-                        </div>
-
-                    @endforeach
-
-                </div>
-
-
-                <div
-                    class="mt-4 grid
-                           grid-cols-3 gap-3"
-                >
-
-                    <div
-                        class="rounded-xl
-                               border
-                               border-slate-200
-                               p-3"
-                    >
-                        <p
-                            class="text-xs
-                                   text-slate-500"
-                        >
-                            Completed
-                        </p>
-
-                        <p
-                            class="mt-1
-                                   font-bold
-                                   text-slate-900"
-                        >
-                            {{
-                                $stageTwo[
-                                    'completed'
-                                ]
-                            }}
-                        </p>
-                    </div>
-
-
-                    <div
-                        class="rounded-xl
-                               border
-                               border-violet-200
-                               bg-violet-50
-                               p-3"
-                    >
-                        <p
-                            class="text-xs
-                                   text-violet-600"
-                        >
-                            Active
-                        </p>
-
-                        <p
-                            class="mt-1
-                                   font-bold
-                                   text-violet-950"
-                        >
-                            {{
-                                $stageTwo[
-                                    'active'
-                                ]
-                            }}
-                        </p>
-                    </div>
-
-
-                    <div
-                        class="rounded-xl
-                               border
-                               border-amber-200
-                               bg-amber-50
-                               p-3"
-                    >
-                        <p
-                            class="text-xs
-                                   text-amber-700"
-                        >
-                            Indeterminate
-                        </p>
-
-                        <p
-                            class="mt-1
-                                   font-bold
-                                   text-amber-950"
-                        >
-                            {{
-                                $stageTwo[
-                                    'indeterminate'
-                                ]
-                            }}
-                        </p>
-                    </div>
-
-                </div>
-
-            </div>
-
-        </div>
-
-
-        {{-- ===================================================== --}}
-        {{-- 30-DAY DISPOSITION PCT --}}
-        {{-- ===================================================== --}}
-
-        @php
-            $dispositionPct =
-                $seadoPctSummary[
-                    'disposition'
-                ];
-        @endphp
-
-
-        <div
-            class="mt-5
-                   rounded-2xl
-                   border border-slate-200
-                   bg-white p-6
-                   shadow-sm"
-        >
-
-            <div
-                class="flex flex-col
-                       justify-between
-                       gap-3
-                       md:flex-row
-                       md:items-start"
-            >
-
-                <div>
-
-                    <p
-                        class="text-xs font-bold
-                               uppercase
-                               tracking-wide
-                               text-emerald-600"
-                    >
-                        Overall Disposition PCT
-                    </p>
-
-                    <h3
-                        class="mt-1
-                               font-bold
-                               text-slate-950"
-                    >
-                        Date Filed → Date Disposed
-                    </h3>
-
-                    <p
-                        class="mt-1
-                               text-sm
-                               text-slate-500"
-                    >
-                        Maximum allowed processing
-                        period: 30 calendar days.
-                    </p>
-
-                </div>
-
-
-                <div
-                    class="text-left
-                           md:text-right"
-                >
-
-                    <div
-                        class="text-3xl
-                               font-bold
-                               text-slate-950"
-                    >
-                        {{
-                            $dispositionPct[
-                                'compliance_rate'
-                            ] !== null
-                                ? $dispositionPct[
-                                    'compliance_rate'
-                                ].'%'
-                                : '—'
-                        }}
-                    </div>
-
-                    <div
-                        class="text-xs
-                               text-slate-400"
-                    >
-                        disposition PCT compliance
-                    </div>
-
-                </div>
-
-            </div>
-
-
-            <div
-                class="mt-6 grid
-                       grid-cols-2 gap-4
-                       md:grid-cols-3
-                       xl:grid-cols-6"
-            >
-
-                <div
-                    class="rounded-xl
-                           border border-emerald-200
-                           bg-emerald-50
-                           p-4"
-                >
-                    <p
-                        class="text-xs font-bold
-                               uppercase
-                               text-emerald-700"
-                    >
-                        Disposed Within
-                    </p>
-
-                    <p
-                        class="mt-2
-                               text-2xl font-bold
-                               text-emerald-950"
-                    >
-                        {{
-                            number_format(
-                                $dispositionPct[
-                                    'disposed_within'
-                                ]
-                            )
-                        }}
-                    </p>
-                </div>
-
-
-                <div
-                    class="rounded-xl
-                           border border-rose-200
-                           bg-rose-50
-                           p-4"
-                >
-                    <p
-                        class="text-xs font-bold
-                               uppercase
-                               text-rose-700"
-                    >
-                        Disposed Beyond
-                    </p>
-
-                    <p
-                        class="mt-2
-                               text-2xl font-bold
-                               text-rose-950"
-                    >
-                        {{
-                            number_format(
-                                $dispositionPct[
-                                    'disposed_beyond'
-                                ]
-                            )
-                        }}
-                    </p>
-                </div>
-
-
-                <div
-                    class="rounded-xl
-                           border border-blue-200
-                           bg-blue-50
-                           p-4"
-                >
-                    <p
-                        class="text-xs font-bold
-                               uppercase
-                               text-blue-700"
-                    >
-                        Active Within
-                    </p>
-
-                    <p
-                        class="mt-2
-                               text-2xl font-bold
-                               text-blue-950"
-                    >
-                        {{
-                            number_format(
-                                $dispositionPct[
-                                    'active_within'
-                                ]
-                            )
-                        }}
-                    </p>
-                </div>
-
-
-                <div
-                    class="rounded-xl
-                           border border-amber-200
-                           bg-amber-50
-                           p-4"
-                >
-                    <p
-                        class="text-xs font-bold
-                               uppercase
-                               text-amber-700"
-                    >
-                        Due Today
-                    </p>
-
-                    <p
-                        class="mt-2
-                               text-2xl font-bold
-                               text-amber-950"
-                    >
-                        {{
-                            number_format(
-                                $dispositionPct[
-                                    'due_today'
-                                ]
-                            )
-                        }}
-                    </p>
-                </div>
-
-
-                <div
-                    class="rounded-xl
-                           border border-red-200
-                           bg-red-50
-                           p-4"
-                >
-                    <p
-                        class="text-xs font-bold
-                               uppercase
-                               text-red-700"
-                    >
-                        Active Beyond
-                    </p>
-
-                    <p
-                        class="mt-2
-                               text-2xl font-bold
-                               text-red-950"
-                    >
-                        {{
-                            number_format(
-                                $dispositionPct[
-                                    'active_beyond'
-                                ]
-                            )
-                        }}
-                    </p>
-                </div>
-
-
-                <div
-                    class="rounded-xl
+                    class="rounded-2xl
                            border border-slate-200
-                           bg-slate-50
-                           p-4"
+                           bg-white p-6
+                           shadow-sm"
                 >
-                    <p
-                        class="text-xs font-bold
-                               uppercase
-                               text-slate-600"
-                    >
-                        Indeterminate
-                    </p>
 
-                    <p
-                        class="mt-2
-                               text-2xl font-bold
-                               text-slate-950"
+                    <div
+                        class="flex
+                               justify-between
+                               gap-4"
                     >
-                        {{
-                            number_format(
-                                $dispositionPct[
-                                    'indeterminate'
-                                ]
-                            )
-                        }}
-                    </p>
+
+                        <div>
+
+                            <p
+                                class="text-xs font-bold
+                                       uppercase
+                                       tracking-wide
+                                       text-blue-600"
+                            >
+                                PCT {{ $loop->iteration }}
+                                &middot;
+                                {{ $definition['limit_label'] }}
+                            </p>
+
+                            <h3
+                                class="mt-1
+                                       font-bold
+                                       text-slate-950"
+                            >
+                                {{ $definition['label'] }}
+                            </h3>
+
+                        </div>
+
+
+                        <div
+                            class="text-right"
+                        >
+
+                            <div
+                                class="text-2xl
+                                       font-bold
+                                       text-slate-950"
+                            >
+                                {{
+                                    $stageSummary[
+                                        'compliance_rate'
+                                    ] !== null
+                                        ? $stageSummary[
+                                            'compliance_rate'
+                                        ].'%'
+                                        : '—'
+                                }}
+                            </div>
+
+                            <div
+                                class="text-xs
+                                       text-slate-400"
+                            >
+                                historical compliance
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        class="mt-5 grid
+                               grid-cols-2 gap-3
+                               sm:grid-cols-4"
+                    >
+
+                        @foreach (
+                            [
+                                'within' =>
+                                    'Within',
+
+                                'nearing' =>
+                                    'Nearing',
+
+                                'on' =>
+                                    'On PCT',
+
+                                'beyond' =>
+                                    'Beyond',
+                            ]
+                            as $key => $label
+                        )
+
+                            <div
+                                class="rounded-xl
+                                       bg-slate-50
+                                       p-3"
+                            >
+
+                                <p
+                                    class="text-xs
+                                           text-slate-500"
+                                >
+                                    {{ $label }}
+                                </p>
+
+                                <p
+                                    class="mt-1
+                                           text-xl
+                                           font-bold
+                                           text-slate-950"
+                                >
+                                    {{
+                                        number_format(
+                                            $stageSummary[
+                                                $key
+                                            ]
+                                        )
+                                    }}
+                                </p>
+
+                            </div>
+
+                        @endforeach
+
+                    </div>
+
+
+                    <div
+                        class="mt-4 grid
+                               grid-cols-3 gap-3"
+                    >
+
+                        <div
+                            class="rounded-xl
+                                   border
+                                   border-slate-200
+                                   p-3"
+                        >
+                            <p
+                                class="text-xs
+                                       text-slate-500"
+                            >
+                                Completed
+                            </p>
+
+                            <p
+                                class="mt-1
+                                       font-bold
+                                       text-slate-900"
+                            >
+                                {{
+                                    $stageSummary[
+                                        'completed'
+                                    ]
+                                }}
+                            </p>
+                        </div>
+
+
+                        <div
+                            class="rounded-xl
+                                   border
+                                   border-blue-200
+                                   bg-blue-50
+                                   p-3"
+                        >
+                            <p
+                                class="text-xs
+                                       text-blue-600"
+                            >
+                                Active
+                            </p>
+
+                            <p
+                                class="mt-1
+                                       font-bold
+                                       text-blue-950"
+                            >
+                                {{
+                                    $stageSummary[
+                                        'active'
+                                    ]
+                                }}
+                            </p>
+                        </div>
+
+
+                        <div
+                            class="rounded-xl
+                                   border
+                                   border-amber-200
+                                   bg-amber-50
+                                   p-3"
+                        >
+                            <p
+                                class="text-xs
+                                       text-amber-700"
+                            >
+                                Indeterminate
+                            </p>
+
+                            <p
+                                class="mt-1
+                                       font-bold
+                                       text-amber-950"
+                            >
+                                {{
+                                    $stageSummary[
+                                        'indeterminate'
+                                    ]
+                                }}
+                            </p>
+                        </div>
+
+                    </div>
+
                 </div>
 
-            </div>
+            @endforeach
 
         </div>
 
@@ -2990,26 +2481,15 @@
                xl:grid-cols-2"
     >
 
-        @foreach (
-            [
-                [
-                    'title' =>
-                        'Filed → Interviewer Assignment',
+        @foreach ($checkpointDefinitions as $checkpointKey => $definition)
 
-                    'summary' =>
-                        $historicalStageOne,
-                ],
-
-                [
-                    'title' =>
-                        'Interviewer Assignment → Interview',
-
-                    'summary' =>
-                        $historicalStageTwo,
-                ],
-            ]
-            as $item
-        )
+            @php
+                $item = [
+                    'title' => $definition['label'],
+                    'limit' => $definition['limit_label'],
+                    'summary' => $historicalPct[$checkpointKey],
+                ];
+            @endphp
 
             <div
                 class="report-card
@@ -3053,7 +2533,7 @@
                            text-slate-500"
                 >
                     Historical compliance
-                    within 3 days
+                    within {{ strtolower($item['limit']) }}
                 </p>
 
 
@@ -3118,212 +2598,6 @@
 
     </section>
 
-
-{{-- ========================================================= --}}
-{{-- OVERALL 30-DAY DISPOSITION PCT --}}
-{{-- ========================================================= --}}
-
-<section
-    class="report-card
-           rounded-2xl
-           border border-slate-200
-           bg-white p-6
-           shadow-sm"
->
-
-    <div
-        class="flex flex-col
-               justify-between
-               gap-4
-               md:flex-row
-               md:items-start"
-    >
-
-        <div>
-
-            <p
-                class="text-xs font-bold
-                       uppercase
-                       tracking-[0.15em]
-                       text-emerald-600"
-            >
-                Overall Disposition PCT
-            </p>
-
-            <h2
-                class="mt-1
-                       text-lg font-bold
-                       text-slate-950"
-            >
-                Date Filed → Date Disposed
-            </h2>
-
-            <p
-                class="mt-1
-                       text-sm
-                       text-slate-500"
-            >
-                Maximum processing period:
-                30 calendar days.
-            </p>
-
-        </div>
-
-
-        <div
-            class="text-left
-                   md:text-right"
-        >
-
-            <p
-                class="text-3xl font-bold
-                       text-slate-950"
-            >
-                {{
-                    $reportDispositionPct[
-                        'compliance_rate'
-                    ] !== null
-                        ? $reportDispositionPct[
-                            'compliance_rate'
-                        ].'%'
-                        : '—'
-                }}
-            </p>
-
-            <p
-                class="mt-1 text-xs
-                       text-slate-400"
-            >
-                Historical disposition
-                PCT compliance
-            </p>
-
-        </div>
-
-    </div>
-
-
-    <div
-        class="mt-6 grid
-               grid-cols-2 gap-4
-               md:grid-cols-3
-               xl:grid-cols-6"
-    >
-
-        @foreach (
-            [
-                [
-                    'label' =>
-                        'Disposed Within',
-
-                    'value' =>
-                        $reportDispositionPct[
-                            'disposed_within'
-                        ],
-
-                    'class' =>
-                        'border-emerald-200 bg-emerald-50 text-emerald-950',
-                ],
-
-                [
-                    'label' =>
-                        'Disposed Beyond',
-
-                    'value' =>
-                        $reportDispositionPct[
-                            'disposed_beyond'
-                        ],
-
-                    'class' =>
-                        'border-rose-200 bg-rose-50 text-rose-950',
-                ],
-
-                [
-                    'label' =>
-                        'Active Within',
-
-                    'value' =>
-                        $reportDispositionPct[
-                            'active_within'
-                        ],
-
-                    'class' =>
-                        'border-blue-200 bg-blue-50 text-blue-950',
-                ],
-
-                [
-                    'label' =>
-                        'Due Today',
-
-                    'value' =>
-                        $reportDispositionPct[
-                            'due_today'
-                        ],
-
-                    'class' =>
-                        'border-amber-200 bg-amber-50 text-amber-950',
-                ],
-
-                [
-                    'label' =>
-                        'Active Beyond',
-
-                    'value' =>
-                        $reportDispositionPct[
-                            'active_beyond'
-                        ],
-
-                    'class' =>
-                        'border-red-200 bg-red-50 text-red-950',
-                ],
-
-                [
-                    'label' =>
-                        'Indeterminate',
-
-                    'value' =>
-                        $reportDispositionPct[
-                            'indeterminate'
-                        ],
-
-                    'class' =>
-                        'border-slate-200 bg-slate-50 text-slate-950',
-                ],
-            ]
-            as $item
-        )
-
-            <div
-                class="rounded-xl
-                       border p-4
-                       {{ $item['class'] }}"
-            >
-
-                <p
-                    class="text-xs font-bold
-                           uppercase"
-                >
-                    {{ $item['label'] }}
-                </p>
-
-                <p
-                    class="mt-2
-                           text-2xl font-bold"
-                >
-                    {{
-                        number_format(
-                            $item['value']
-                        )
-                    }}
-                </p>
-
-            </div>
-
-        @endforeach
-
-    </div>
-
-</section>
 
     {{-- ========================================================= --}}
     {{-- BREAKDOWNS --}}
@@ -3505,8 +2779,8 @@
                    text-slate-500"
         >
             Total processing duration is reported
-            separately and is not treated as a
-            three-day PCT checkpoint.
+            separately and is not rated against
+            a PCT limit.
         </p>
 
 
@@ -3750,25 +3024,18 @@
                         >
                             2nd Conference
                         </th>
-                        <th
-                            class="px-4 py-3
-                                   text-left
-                                   text-xs font-bold
-                                   uppercase
-                                   text-slate-500"
-                        >
-                            PCT 1
-                        </th>
-
-                        <th
-                            class="px-4 py-3
-                                   text-left
-                                   text-xs font-bold
-                                   uppercase
-                                   text-slate-500"
-                        >
-                            PCT 2
-                        </th>
+                        @foreach ($checkpointDefinitions as $definition)
+                            <th
+                                class="px-4 py-3
+                                       text-left
+                                       text-xs font-bold
+                                       uppercase
+                                       text-slate-500"
+                            >
+                                PCT {{ $loop->iteration }}:
+                                {{ $definition['short_label'] }}
+                            </th>
+                        @endforeach
 
                         <th
                             class="px-4 py-3
@@ -3789,16 +3056,6 @@
                                    text-slate-500"
                         >
                             Date Disposed
-                        </th>
-
-                        <th
-                            class="px-4 py-3
-                                   text-left
-                                   text-xs font-bold
-                                   uppercase
-                                   text-slate-500"
-                        >
-                            30-Day PCT
                         </th>
 
                         <th
@@ -3850,21 +3107,6 @@
                             $pct =
                                 $recordPct[
                                     $rfa->id
-                                ];
-
-                            $pctOne =
-                                $pct[
-                                    'stage_one'
-                                ];
-
-                            $pctTwo =
-                                $pct[
-                                    'stage_two'
-                                ];
-
-                            $dispositionPct =
-                                $pct[
-                                    'disposition_pct'
                                 ];
 
                             $totalProcessing =
@@ -4053,10 +3295,7 @@
 
 
                             @foreach (
-                                [
-                                    $pctOne,
-                                    $pctTwo,
-                                ]
+                                $pct['checkpoints']
                                 as $checkpoint
                             )
 
@@ -4108,7 +3347,7 @@
                                             class="text-xs
                                                    text-slate-400"
                                         >
-                                            Unavailable
+                                            {{ \App\Services\PctService::statusLabel($checkpoint) }}
                                         </span>
 
                                     @endif
@@ -4176,112 +3415,6 @@
                                         ?->format('M d, Y')
                                     ?? '—'
                                 }}
-                            </td>
-
-
-                            <td
-                                class="px-4 py-4"
-                            >
-
-                                <div
-                                    class="text-xs font-semibold
-                                           text-slate-800"
-                                >
-                                    {{
-                                        $dispositionPct[
-                                            'status_label'
-                                        ]
-                                        ?? 'Unavailable'
-                                    }}
-                                </div>
-
-
-                                @if (
-                                    $dispositionPct[
-                                        'days'
-                                    ] !== null
-                                )
-
-                                    <div
-                                        class="mt-1 text-xs
-                                               text-slate-400"
-                                    >
-                                        {{
-                                            $dispositionPct[
-                                                'days'
-                                            ]
-                                        }}
-                                        day(s)
-                                    </div>
-
-                                @endif
-
-
-                                @if (
-                                    $dispositionPct[
-                                        'deadline'
-                                    ]
-                                )
-
-                                    <div
-                                        class="mt-1 text-xs
-                                               text-slate-400"
-                                    >
-                                        Deadline:
-                                        {{
-                                            $dispositionPct[
-                                                'deadline'
-                                            ]->format(
-                                                'M d, Y'
-                                            )
-                                        }}
-                                    </div>
-
-                                @endif
-
-
-                                @if (
-                                    (
-                                        $dispositionPct[
-                                            'overdue_days'
-                                        ]
-                                        ?? 0
-                                    ) > 0
-                                )
-
-                                    <div
-                                        class="mt-1 text-xs
-                                               font-semibold
-                                               text-red-600"
-                                    >
-                                        {{
-                                            $dispositionPct[
-                                                'overdue_days'
-                                            ]
-                                        }}
-                                        day(s) overdue
-                                    </div>
-
-                                @elseif (
-                                    $dispositionPct[
-                                        'state'
-                                    ] === 'active'
-                                )
-
-                                    <div
-                                        class="mt-1 text-xs
-                                               text-blue-600"
-                                    >
-                                        {{
-                                            $dispositionPct[
-                                                'remaining_days'
-                                            ]
-                                        }}
-                                        day(s) remaining
-                                    </div>
-
-                                @endif
-
                             </td>
 
 
@@ -4379,7 +3512,7 @@
                         <tr>
 
                             <td
-                                colspan="21"
+                                colspan="23"
                                 class="px-6 py-14
                                        text-center
                                        text-sm

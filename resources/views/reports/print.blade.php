@@ -524,7 +524,7 @@
 
             <td>
                 <span class="summary-label">
-                    Disposed Within PCT
+                    Disposed Within PCT (1st Conf. → Disposed)
                 </span>
 
                 <span class="summary-value">
@@ -541,7 +541,7 @@
 
             <td>
                 <span class="summary-label">
-                    Disposed Beyond PCT
+                    Disposed Beyond PCT (1st Conf. → Disposed)
                 </span>
 
                 <span class="summary-value">
@@ -558,7 +558,7 @@
 
             <td>
                 <span class="summary-label">
-                    PCT Compliance
+                    Disposition PCT Compliance
                 </span>
 
                 <span class="summary-value">
@@ -689,7 +689,7 @@
                 </th>
 
                 <th
-                    colspan="6"
+                    colspan="5"
                     class="
                         group-heading
                         group-process
@@ -709,7 +709,7 @@
                 </th>
 
                 <th
-                    colspan="4"
+                    colspan="2"
                     class="
                         group-heading
                         group-disposition
@@ -773,11 +773,7 @@
                 </th>
 
                 <th class="column-heading">
-                    PCT 1
-                </th>
-
-                <th class="column-heading">
-                    PCT 2
+                    PCT (1–5)
                 </th>
 
                 <th class="column-heading">
@@ -806,14 +802,6 @@
                     Date Disposed
                 </th>
 
-                <th class="column-heading">
-                    30-Day PCT
-                </th>
-
-                <th class="column-heading">
-                    Deadline
-                </th>
-
 
                 <th class="column-heading">
                     Workers
@@ -840,21 +828,6 @@
                     $pct =
                         $recordPct[
                             $rfa->id
-                        ];
-
-                    $pctOne =
-                        $pct[
-                            'stage_one'
-                        ];
-
-                    $pctTwo =
-                        $pct[
-                            'stage_two'
-                        ];
-
-                    $dispositionPct =
-                        $pct[
-                            'disposition_pct'
                         ];
 
                     $totalProcessing =
@@ -961,51 +934,13 @@
                     </td>
 
 
-                    <td class="center">
-                        {{
-                            $pctOne[
-                                'classification_label'
-                            ]
-                            ?? '—'
-                        }}
-
-                        @if (
-                            $pctOne['days']
-                            !== null
-                        )
-
-                            <br>
-
-                            {{
-                                $pctOne['days']
-                            }}
-                            d
-
-                        @endif
-                    </td>
-
-
-                    <td class="center">
-                        {{
-                            $pctTwo[
-                                'classification_label'
-                            ]
-                            ?? '—'
-                        }}
-
-                        @if (
-                            $pctTwo['days']
-                            !== null
-                        )
-
-                            <br>
-
-                            {{
-                                $pctTwo['days']
-                            }}
-                            d
-
-                        @endif
+                    <td>
+                        @foreach ($pct['checkpoints'] as $checkpoint)
+                            <div class="nowrap">
+                                {{ $loop->iteration }}.
+                                {{ \App\Services\PctService::statusLabel($checkpoint) }}@if ($checkpoint['days'] !== null) · {{ $checkpoint['days'] }}d @endif
+                            </div>
+                        @endforeach
                     </td>
 
 
@@ -1102,113 +1037,6 @@
                     </td>
 
 
-                    <td
-                        class="
-                            center
-
-                            {{
-                                (
-                                    $dispositionPct[
-                                        'status_key'
-                                    ]
-                                    ?? null
-                                )
-                                ===
-                                'disposed_beyond'
-
-                                ||
-                                (
-                                    $dispositionPct[
-                                        'status_key'
-                                    ]
-                                    ?? null
-                                )
-                                ===
-                                'active_beyond'
-
-                                    ? 'pct-beyond'
-                                    : 'pct-within'
-                            }}
-                        "
-                    >
-                        {{
-                            $dispositionPct[
-                                'status_label'
-                            ]
-                            ?? '—'
-                        }}
-
-                        @if (
-                            $dispositionPct[
-                                'days'
-                            ]
-                            !== null
-                        )
-
-                            <br>
-
-                            {{
-                                $dispositionPct[
-                                    'days'
-                                ]
-                            }}
-                            d
-
-                        @endif
-                    </td>
-
-
-                    <td class="center">
-
-                        {{
-                            $dispositionPct[
-                                'deadline'
-                            ]
-                                ?->format(
-                                    'm/d/Y'
-                                )
-                            ?? '—'
-                        }}
-
-
-                        @if (
-                            (
-                                $dispositionPct[
-                                    'overdue_days'
-                                ]
-                                ?? 0
-                            ) > 0
-                        )
-
-                            <br>
-
-                            {{
-                                $dispositionPct[
-                                    'overdue_days'
-                                ]
-                            }}
-                            overdue
-
-                        @elseif (
-                            $dispositionPct[
-                                'state'
-                            ]
-                            === 'active'
-                        )
-
-                            <br>
-
-                            {{
-                                $dispositionPct[
-                                    'remaining_days'
-                                ]
-                            }}
-                            remaining
-
-                        @endif
-
-                    </td>
-
 
                     <td class="center">
                         {{
@@ -1262,7 +1090,7 @@
                 <tr>
 
                     <td
-                        colspan="21"
+                        colspan="18"
                         class="center"
                         style="
                             padding: 20px;

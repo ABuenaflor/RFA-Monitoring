@@ -180,27 +180,40 @@
                     Office
                 </label>
 
-                <input
+                @php
+                    $currentOffice = old('office', $user->office ?? '');
+                @endphp
+
+                <select
                     id="office"
                     name="office"
-                    list="office-options"
-                    value="{{ old('office', $user->office ?? '') }}"
-                    placeholder="e.g. PFO Albay"
                     class="w-full rounded-xl
                            border border-slate-300
-                           px-4 py-3 text-sm
-                           outline-none
-                           focus:border-blue-500
-                           focus:ring-4 focus:ring-blue-100"
+                           bg-white px-4 py-3 text-sm"
                 >
 
-                <datalist id="office-options">
+                    <option value="">No office assigned</option>
 
                     @foreach ($offices as $office)
-                        <option value="{{ $office }}"></option>
+                        <option
+                            value="{{ $office }}"
+                            @selected($currentOffice === $office)
+                        >
+                            {{ $office }}
+                        </option>
                     @endforeach
 
-                </datalist>
+                </select>
+
+                @if (
+                    $currentOffice !== ''
+                    && ! in_array($currentOffice, $offices, true)
+                )
+                    <p class="mt-2 text-xs text-amber-600">
+                        Currently set to “{{ $currentOffice }}”, which is
+                        not on the office list. Choose an office before saving.
+                    </p>
+                @endif
 
             </div>
 

@@ -195,6 +195,50 @@
 
                         @foreach ($group['permissions'] as $key => $description)
 
+                            @if (\App\Support\Permissions::isAdminOnly($key))
+
+                                <div
+                                    class="flex items-start gap-3
+                                           rounded-xl
+                                           border border-slate-200
+                                           bg-slate-100 px-4 py-3"
+                                >
+
+                                    <input
+                                        type="checkbox"
+                                        disabled
+                                        aria-label="{{ $description }} (Administrator only)"
+                                        class="mt-0.5 rounded
+                                               border-slate-300"
+                                    >
+
+                                    <span class="min-w-0">
+
+                                        <span
+                                            class="block text-sm
+                                                   font-semibold
+                                                   text-slate-500"
+                                        >
+                                            {{ $description }}
+                                        </span>
+
+                                        <span
+                                            class="mt-0.5 block
+                                                   text-xs
+                                                   text-slate-400"
+                                        >
+                                            <span class="font-mono">{{ $key }}</span>
+                                            &middot; Administrator only
+                                        </span>
+
+                                    </span>
+
+                                </div>
+
+                                @continue
+
+                            @endif
+
                             @php
                                 $checked = in_array(
                                     $key,

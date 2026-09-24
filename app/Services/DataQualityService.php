@@ -132,7 +132,7 @@ class DataQualityService
                     'Records marked disposed that carry no Date Disposed.',
 
                 'impact' =>
-                    'The 30-day disposition PCT is indeterminate. These are '
+                    'The 1st Conference - Date Disposed PCT is indeterminate. These are '
                     . 'deliberately held out of the active timer rather than '
                     . 'left ageing forever.',
 
@@ -174,7 +174,7 @@ class DataQualityService
                     . 'assignment date.',
 
                 'impact' =>
-                    'Stage 2 cannot be measured from an end date that '
+                    'Interviewer Assignment - Date Interviewed cannot be measured from an end date that '
                     . 'precedes its start.',
 
                 'severity' => self::SEVERITY_WARNING,

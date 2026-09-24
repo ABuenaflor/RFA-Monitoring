@@ -50,6 +50,11 @@ Four roles are created by the seeder:
 narrowed, so the system can never be left with nobody able to reach access
 control. For a narrower administrative profile, create a custom role instead.
 
+**CSV import is Administrator only.** It appears locked ("Administrator only")
+in the role editor and cannot be given to any other role, including custom
+ones. Imported records are not private to the administrator: every user who
+can view RFAs sees them in the listing, dashboard, PCT Process and reports.
+
 ### Things the system refuses to let you do
 
 - Demote, deactivate, or delete the **last active administrator**
@@ -73,7 +78,8 @@ These are not warnings. The save is refused.
 
 ## 3. Importing CSV data
 
-`CSV Import` → choose file → upload.
+`CSV Import` → choose file → upload. Only the Administrator sees this menu item
+and the Import CSV buttons.
 
 What happens:
 
@@ -136,14 +142,27 @@ on the case timeline.
 
 ### The rules (fixed, not configurable)
 
-| Measure | From → To | Limit |
-| --- | --- | --- |
-| Stage 1 | Date Filed → Date Assigned to Interviewer | 3 calendar days |
-| Stage 2 | Date Assigned to Interviewer → Date of Interview | 3 calendar days |
-| Disposition | Date Filed → Date Disposed | 30 calendar days |
+| # | Checkpoint | From → To | Limit |
+| --- | --- | --- | --- |
+| 1 | Date Filed - Interviewer Assignment | Date Filed → Date Assigned to Interviewer | On-site: same day · Online: 2 days |
+| 2 | Interviewer Assignment - Date Interviewed | Date Assigned to Interviewer → Date of Interview | 3 days |
+| 3 | Date Interviewed - SEADO Assignment | Date of Interview → Date Assigned to SEADO | 3 days |
+| 4 | SEADO Assignment - 1st Conference | Date Assigned to SEADO → 1st Conference | 10 days |
+| 5 | 1st Conference - Date Disposed | 1st Conference → Date Disposed | 30 days |
 
-Stage classification: 0–1 Within · 2 Nearing · 3 On PCT · over 3 Beyond.
-Day 30 is **compliant**, not late.
+Calendar days; the start day is day 0. Each checkpoint is rated against its
+own limit:
+
+| Rating | 2- and 3-day rules | 10- and 30-day rules | Same-day rule |
+| --- | --- | --- | --- |
+| Within PCT | before the day before | before the last 3 days | — |
+| Nearing PCT | the day before the deadline | the last 3 days before it | — |
+| On PCT | the deadline day | the deadline day | day 0 |
+| Beyond PCT | past the deadline | past the deadline | day 1 or later |
+
+The deadline day is **compliant**, not late. A case with no mode of filing
+cannot be rated on checkpoint 1 and is listed as "Mode of Filing Missing" in
+the PCT data issues until someone fills it in.
 
 ### Running the scan
 
@@ -168,6 +187,42 @@ The scan is safe to run as often as you like:
 That second rule matters here: imported records carry only a text name, so
 until accounts are assigned, supervisors see three summary alerts rather than
 several hundred individual ones.
+
+### Email alerts
+
+The same scan can also email the assigned officer at their account email.
+It is **off until you turn it on**:
+
+1. Point the mailer at a real mail server in `.env` (`MAIL_MAILER=smtp`,
+   `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`,
+   `MAIL_FROM_ADDRESS`).
+2. Set `PCT_EMAIL_ENABLED=true`.
+3. Run `php artisan config:clear`, then run a scan.
+
+What gets emailed:
+
+| Level | When (any of the five checkpoints) |
+| --- | --- |
+| Nearing PCT | the checkpoint is rated Nearing PCT (see the table above) |
+| Due today | the deadline day |
+| Beyond PCT | past the deadline |
+
+Checkpoints 1–3 alert the interviewer (falling back to the SEADO);
+checkpoints 4–5 alert the SEADO (falling back to the interviewer).
+
+- Each officer gets **one email per scan**, listing every case that newly
+  reached a level (most urgent first, capped at `PCT_EMAIL_MAX_ITEMS`, default
+  50, with "and N more").
+- Each case is emailed **once per level**, so a daily scan does not repeat the
+  same alert. A case moving from nearing to breached is emailed again.
+- Unassigned cases are not emailed; they stay in the supervisors' in-app
+  summary alerts.
+- Officers whose account email is not a valid address are skipped.
+- If sending fails, the scan still completes, the failure is written to
+  `storage/logs`, and the email is retried on the next scan.
+
+Do not enable it while `MAIL_MAILER=log`: alerts would be written to the log
+file and recorded as sent, so they would not be emailed later.
 
 ### Making the scan automatic
 
@@ -291,7 +346,7 @@ right now, not that someone ticked a box.
 | Command | Purpose |
 | --- | --- |
 | `php artisan rfa:create-admin` | Create an administrator account |
-| `php artisan rfa:scan-pct` | Recalculate PCT notifications |
+| `php artisan rfa:scan-pct` | Recalculate PCT notifications and send PCT email alerts |
 | `php artisan rfa:prune-audit` | Apply audit retention |
 | `php artisan schedule:work` | Run the scheduler in the foreground |
 | `php artisan db:seed --class=RolePermissionSeeder` | Create the four system roles |

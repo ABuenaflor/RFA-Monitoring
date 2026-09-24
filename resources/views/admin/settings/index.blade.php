@@ -24,9 +24,8 @@
                    leading-6 text-slate-500"
         >
             A closed list of controlled settings. Business rules are not here on
-            purpose: the 3-day checkpoint limits and the 30-day disposition
-            limit are policy, not configuration, and cannot be changed from the
-            interface.
+            purpose: the five PCT checkpoint limits are policy, not
+            configuration, and cannot be changed from the interface.
         </p>
 
 
@@ -237,11 +236,16 @@
                    gap-4 md:grid-cols-3"
         >
 
-            @foreach ([
-                'Stage 1 PCT' => 'Date Filed → Date Assigned to Interviewer, maximum 3 calendar days',
-                'Stage 2 PCT' => 'Date Assigned to Interviewer → Date of Interview, maximum 3 calendar days',
-                'Disposition PCT' => 'Date Filed → Date Disposed, maximum 30 calendar days, day 30 compliant',
-            ] as $label => $rule)
+            @foreach (
+                collect(\App\Services\PctService::definitions())
+                    ->values()
+                    ->mapWithKeys(fn ($definition, $index) => [
+                        'PCT ' . ($index + 1) => $definition['label']
+                            . ' — ' . $definition['limit_label']
+                            . ', calendar days, deadline day compliant',
+                    ])
+                as $label => $rule
+            )
 
                 <div
                     class="rounded-xl

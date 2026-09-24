@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class CreateAdministratorCommand extends Command
 {
@@ -14,7 +15,7 @@ class CreateAdministratorCommand extends Command
         {--name= : Full name of the administrator}
         {--email= : Sign-in email address}
         {--password= : Password (generated when omitted)}
-        {--office= : Office assignment}';
+        {--office= : Office assignment, e.g. "Albay PFO" (see config/offices.php)}';
 
     protected $description = 'Create an administrator account for the RFA Monitoring System.';
 
@@ -53,6 +54,7 @@ class CreateAdministratorCommand extends Command
                 'name' => $name,
                 'email' => $email,
                 'password' => $password,
+                'office' => $this->option('office'),
             ],
             [
                 'name' =>
@@ -63,6 +65,17 @@ class CreateAdministratorCommand extends Command
 
                 'password' =>
                     ['required', 'string', 'min:10'],
+
+                'office' =>
+                    [
+                        'nullable',
+                        'string',
+                        Rule::in(array_keys(config('offices.list', []))),
+                    ],
+            ],
+            [
+                'office.in' => 'The office must be one of: '
+                    . implode(', ', array_keys(config('offices.list', []))) . '.',
             ]
         );
 

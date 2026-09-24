@@ -62,6 +62,14 @@ class Role extends Model
             return true;
         }
 
+        /*
+        | Refused even if an older role still has the key stored.
+        */
+
+        if (Permissions::isAdminOnly($permission)) {
+            return false;
+        }
+
         return in_array(
             $permission,
             $this->permissionKeys(),
@@ -72,11 +80,18 @@ class Role extends Model
     /**
      * Replace the role's permission set with the supplied keys.
      *
+     * Administrator-only keys are dropped (the administrator role holds
+     * them implicitly), which also clears any left over from before they
+     * were restricted.
+     *
      * @param  array<int, string>  $permissions
      */
     public function syncPermissions(array $permissions): void
     {
-        $permissions = Permissions::onlyKnown($permissions);
+        $permissions = array_values(array_diff(
+            Permissions::onlyKnown($permissions),
+            Permissions::adminOnly()
+        ));
 
         $this->permissions()
             ->whereNotIn('permission', $permissions)

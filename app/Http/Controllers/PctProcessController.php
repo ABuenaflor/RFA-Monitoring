@@ -18,7 +18,36 @@ class PctProcessController extends Controller
         $asOf = now()
             ->startOfDay();
 
+        /*
+        |--------------------------------------------------------------------------
+        | Office filter
+        |--------------------------------------------------------------------------
+        |
+        | Page-wide: every card, table and statistic below reflects only the
+        | selected office. Values are the office codes stored on the RFAs
+        | (config/offices.php); anything else is ignored.
+        |
+        */
+
+        $offices = config('offices.list', []);
+
+        $officeFilter = (string) $request->query(
+            'office',
+            ''
+        );
+
+        if (! in_array($officeFilter, $offices, true)) {
+            $officeFilter = '';
+        }
+
         $rfas = Rfa::query()
+            ->when(
+                $officeFilter !== '',
+                fn ($query) => $query->where(
+                    'office',
+                    $officeFilter
+                )
+            )
             ->orderByDesc('date_filed')
             ->orderByDesc('id')
             ->get();
@@ -28,13 +57,10 @@ class PctProcessController extends Controller
         $dataIssues = collect();
         $processingDurations = collect();
 
-        $historicalSummary = [
-            'stage_one' =>
-                $this->emptyClassificationSummary(),
-
-            'stage_two' =>
-                $this->emptyClassificationSummary(),
-        ];
+        $historicalSummary = array_fill_keys(
+            PctService::keys(),
+            $this->emptyClassificationSummary()
+        );
 
         /*
         |--------------------------------------------------------------------------
@@ -49,76 +75,45 @@ class PctProcessController extends Controller
                     $asOf
                 );
 
-            $stageOne =
-                $evaluation['stage_one'];
+            $checkpoints = $evaluation['checkpoints'];
 
-            $stageTwo =
-                $evaluation['stage_two'];
+            $hasCompleted = false;
 
-            /*
-            |--------------------------------------------------------------------------
-            | Active timers
-            |--------------------------------------------------------------------------
-            */
+            foreach ($checkpoints as $key => $checkpoint) {
+                /*
+                | Active timers
+                */
 
-            foreach (
-                [
-                    $stageOne,
-                    $stageTwo,
-                ]
-                as $checkpoint
-            ) {
-                if (
-                    $checkpoint['state']
-                    === 'active'
-                ) {
+                if ($checkpoint['state'] === 'active') {
                     $activeTimers->push([
                         'rfa' => $rfa,
-                        'checkpoint' =>
-                            $checkpoint,
+                        'checkpoint' => $checkpoint,
                     ]);
                 }
-            }
 
-            /*
-            |--------------------------------------------------------------------------
-            | Historical completed results
-            |--------------------------------------------------------------------------
-            */
+                /*
+                | Historical completed results
+                */
 
-            $this->addHistoricalResult(
-                $historicalSummary[
-                    'stage_one'
-                ],
-                $stageOne
-            );
+                $this->addHistoricalResult(
+                    $historicalSummary[$key],
+                    $checkpoint
+                );
 
-            $this->addHistoricalResult(
-                $historicalSummary[
-                    'stage_two'
-                ],
-                $stageTwo
-            );
+                $hasCompleted = $hasCompleted
+                    || $checkpoint['state'] === 'completed';
 
-            /*
-            |--------------------------------------------------------------------------
-            | Data-quality issues
-            |--------------------------------------------------------------------------
-            */
+                /*
+                | Data-quality issues
+                */
 
-            foreach (
-                [
-                    $stageOne,
-                    $stageTwo,
-                ]
-                as $checkpoint
-            ) {
                 if (
                     in_array(
                         $checkpoint['state'],
                         [
                             'missing_start',
                             'missing_end',
+                            'missing_mode',
                             'invalid',
                         ],
                         true
@@ -126,8 +121,7 @@ class PctProcessController extends Controller
                 ) {
                     $dataIssues->push([
                         'rfa' => $rfa,
-                        'checkpoint' =>
-                            $checkpoint,
+                        'checkpoint' => $checkpoint,
                     ]);
                 }
             }
@@ -139,20 +133,14 @@ class PctProcessController extends Controller
             */
 
             if (
-                $stageOne['state']
-                    === 'completed'
-                || $stageTwo['state']
-                    === 'completed'
+                $hasCompleted
                 || $evaluation[
                     'total_processing'
                 ]['state'] === 'completed'
             ) {
                 $historyRows->push([
                     'rfa' => $rfa,
-                    'stage_one' =>
-                        $stageOne,
-                    'stage_two' =>
-                        $stageTwo,
+                    'checkpoints' => $checkpoints,
                     'total_processing' =>
                         $evaluation[
                             'total_processing'
@@ -185,19 +173,10 @@ class PctProcessController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $historicalSummary['stage_one'] =
-            $this->finalizeHistoricalSummary(
-                $historicalSummary[
-                    'stage_one'
-                ]
-            );
-
-        $historicalSummary['stage_two'] =
-            $this->finalizeHistoricalSummary(
-                $historicalSummary[
-                    'stage_two'
-                ]
-            );
+        $historicalSummary = array_map(
+            fn (array $summary) => $this->finalizeHistoricalSummary($summary),
+            $historicalSummary
+        );
 
         /*
         |--------------------------------------------------------------------------
@@ -302,10 +281,7 @@ class PctProcessController extends Controller
         if (
             in_array(
                 $stageFilter,
-                [
-                    'assignment',
-                    'interview',
-                ],
+                PctService::keys(),
                 true
             )
         ) {
@@ -514,6 +490,20 @@ class PctProcessController extends Controller
 
                 'classificationFilter' =>
                     $classificationFilter,
+
+                'checkpointDefinitions' =>
+                    PctService::definitions(),
+
+                'offices' => $offices,
+
+                'officeFilter' => $officeFilter,
+
+                'officeLabel' =>
+                    array_search(
+                        $officeFilter,
+                        $offices,
+                        true
+                    ) ?: null,
             ]
         );
     }
@@ -559,7 +549,7 @@ class PctProcessController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | <= 3 days is compliant
+        | Within the limit (including the deadline day) is compliant
         |--------------------------------------------------------------------------
         */
 

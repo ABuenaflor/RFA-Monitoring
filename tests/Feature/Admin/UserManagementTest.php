@@ -37,7 +37,7 @@ class UserManagementTest extends TestCase
                 'name' => 'Maria Santos',
                 'email' => 'maria.santos@example.test',
                 'role_id' => $role->id,
-                'office' => 'PFO Albay',
+                'office' => 'Albay PFO',
                 'position' => 'SEADO',
                 'status' => 'active',
                 'password' => 'initial-pass-1',
@@ -59,6 +59,107 @@ class UserManagementTest extends TestCase
         $this->assertTrue(
             Hash::check('initial-pass-1', $created->password)
         );
+
+        $this->assertSame('Albay PFO', $created->office);
+    }
+
+    public function test_the_add_user_form_offers_only_the_listed_offices(): void
+    {
+        $response = $this->actingAs($this->admin)
+            ->get(route('admin.access.create'))
+            ->assertOk();
+
+        foreach ([
+            'Regional Office',
+            'Albay PFO',
+            'Camarines Sur PFO',
+            'Camarines Norte PFO',
+            'Sorsogon PFO',
+            'Masbate PFO',
+            'Catanduanes PFO',
+        ] as $office) {
+            $response->assertSee(
+                'value="' . $office . '"',
+                false
+            );
+        }
+
+        $response->assertSee('<select', false);
+        $response->assertDontSee('list="office-options"', false);
+    }
+
+    public function test_an_office_outside_the_list_is_rejected(): void
+    {
+        $role = Role::query()
+            ->where('slug', 'viewer')
+            ->firstOrFail();
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.access.store'), [
+                'name' => 'Pedro Reyes',
+                'email' => 'pedro.reyes@example.test',
+                'role_id' => $role->id,
+                'office' => 'Some Other Office',
+                'status' => 'active',
+                'password' => 'initial-pass-1',
+                'password_confirmation' => 'initial-pass-1',
+            ])
+            ->assertSessionHasErrors('office');
+
+        $this->assertDatabaseMissing('users', [
+            'email' => 'pedro.reyes@example.test',
+        ]);
+    }
+
+    public function test_a_user_can_be_saved_without_an_office(): void
+    {
+        $role = Role::query()
+            ->where('slug', 'viewer')
+            ->firstOrFail();
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.access.store'), [
+                'name' => 'Ana Cruz',
+                'email' => 'ana.cruz@example.test',
+                'role_id' => $role->id,
+                'office' => '',
+                'status' => 'active',
+                'password' => 'initial-pass-1',
+                'password_confirmation' => 'initial-pass-1',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertNull(
+            User::query()
+                ->where('email', 'ana.cruz@example.test')
+                ->value('office')
+        );
+    }
+
+    public function test_editing_a_user_with_an_old_office_value_flags_it(): void
+    {
+        $user = User::factory()
+            ->withRole('viewer')
+            ->create(['office' => 'PFO Albay']);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.access.edit', $user))
+            ->assertOk()
+            ->assertSeeText('not on the office list');
+    }
+
+    public function test_create_admin_command_rejects_an_unknown_office(): void
+    {
+        $this->artisan('rfa:create-admin', [
+            '--name' => 'Second Admin',
+            '--email' => 'second.admin@example.test',
+            '--password' => 'strong-pass-123',
+            '--office' => 'Nowhere Office',
+        ])->assertFailed();
+
+        $this->assertDatabaseMissing('users', [
+            'email' => 'second.admin@example.test',
+        ]);
     }
 
     public function test_a_weak_password_is_rejected(): void

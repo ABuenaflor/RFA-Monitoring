@@ -361,8 +361,8 @@ Imported records only ever carry a name, so the free-text field has to stay.
 ### 2.6 The case screen
 
 **`resources/views/rfas/show.blade.php`** — header with badges, a data
-consistency panel when `$issues` is non-empty, three PCT cards (Stage 1,
-Stage 2, 30-day disposition, colour-keyed by status), the five editable
+consistency panel when `$issues` is non-empty, five PCT checkpoint cards (one per
+`PctService::definitions()` rule, colour-keyed by rating), the five editable
 sections, and the timeline with a note form.
 
 Permission gating is per section: `$canManage`, `$canAssign`, `$canDispose` are
