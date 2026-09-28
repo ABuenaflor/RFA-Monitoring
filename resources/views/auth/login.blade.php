@@ -15,6 +15,12 @@
         Sign In | RFA Monitoring System
     </title>
 
+    <link
+        rel="icon"
+        type="image/png"
+        href="{{ asset('images/sidenavlogo.png') }}"
+    >
+
     @vite([
         'resources/css/app.css',
         'resources/js/app.js'
@@ -39,12 +45,24 @@
     {{-- BRAND PANEL --}}
     {{-- ========================================================= --}}
 
+    {{-- Textured navy: dot grid, fine diagonals, and soft glows in the
+         SEnA logo colours. Inline so it works without an asset rebuild. --}}
+
     <section
         class="hidden
-               bg-slate-950 p-12
+               p-12
                text-white
                lg:flex lg:flex-col
                lg:justify-between"
+        style="background-color: #0b2150;
+               background-image:
+                   radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1.5px),
+                   repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 18px),
+                   radial-gradient(circle at 10% 5%, rgba(37, 99, 235, 0.45), transparent 45%),
+                   radial-gradient(circle at 95% 98%, rgba(204, 17, 40, 0.28), transparent 40%),
+                   radial-gradient(circle at 88% 30%, rgba(252, 211, 23, 0.08), transparent 30%),
+                   linear-gradient(to bottom, transparent 55%, rgba(2, 6, 23, 0.45));
+               background-size: 24px 24px, auto, auto, auto, auto, auto;"
     >
 
         <div>
@@ -76,6 +94,13 @@
         </div>
 
 
+        <img
+            src="{{ asset('images/senalogin.png') }}"
+            alt="SEnA — Single Entry Approach, DOLE Regional Office V, Bicol Region"
+            class="mx-auto w-full max-w-xl"
+        >
+
+
         <div
             class="grid grid-cols-3 gap-3
                    text-xs text-slate-300"
@@ -83,8 +108,10 @@
 
             <div
                 class="rounded-2xl
-                       border border-slate-700
-                       bg-slate-900/60 p-4"
+                       border p-4
+                       backdrop-blur-sm"
+                style="background-color: rgba(255, 255, 255, 0.05);
+                       border-color: rgba(255, 255, 255, 0.12);"
             >
                 <p class="font-bold text-white">PCT</p>
 
@@ -96,8 +123,10 @@
 
             <div
                 class="rounded-2xl
-                       border border-slate-700
-                       bg-slate-900/60 p-4"
+                       border p-4
+                       backdrop-blur-sm"
+                style="background-color: rgba(255, 255, 255, 0.05);
+                       border-color: rgba(255, 255, 255, 0.12);"
             >
                 <p class="font-bold text-white">RBAC</p>
 
@@ -109,8 +138,10 @@
 
             <div
                 class="rounded-2xl
-                       border border-slate-700
-                       bg-slate-900/60 p-4"
+                       border p-4
+                       backdrop-blur-sm"
+                style="background-color: rgba(255, 255, 255, 0.05);
+                       border-color: rgba(255, 255, 255, 0.12);"
             >
                 <p class="font-bold text-white">Audit</p>
 

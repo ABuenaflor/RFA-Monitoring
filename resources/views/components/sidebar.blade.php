@@ -165,11 +165,16 @@
             <div
                 class="flex h-11 w-11 shrink-0
                        items-center justify-center
-                       rounded-xl bg-blue-600
-                       font-black text-white
+                       overflow-hidden
+                       rounded-xl bg-white
                        shadow-lg shadow-blue-950/40"
             >
-                RFA
+                <img
+                    src="{{ asset('images/sidenavlogo.png') }}"
+                    alt="SEnA logo"
+                    class="h-full w-full"
+                    style="object-fit: contain; transform: scale(1.5);"
+                >
             </div>
 
 
@@ -187,14 +192,7 @@
                            font-bold tracking-wide
                            text-white"
                 >
-                    RFA Monitoring
-                </p>
-
-                <p
-                    class="truncate text-xs
-                           text-slate-400"
-                >
-                    Management System
+                    RFA Monitoring System
                 </p>
 
             </div>
