@@ -91,6 +91,8 @@ final class Permissions
 
     public const SETTINGS_MANAGE = 'settings.manage';
 
+    public const HOLIDAYS_MANAGE = 'holidays.manage';
+
     /*
     |--------------------------------------------------------------------------
     | Release Readiness
@@ -220,6 +222,9 @@ final class Permissions
 
                     self::SETTINGS_MANAGE =>
                         'Change controlled system settings',
+
+                    self::HOLIDAYS_MANAGE =>
+                        'Add and edit holidays and events the PCT clock skips',
                 ],
             ],
 

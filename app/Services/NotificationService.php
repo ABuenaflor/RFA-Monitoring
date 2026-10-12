@@ -22,11 +22,22 @@ use Illuminate\Support\Collection;
  *    is assigned to — so an unassigned backlog is visible without burying
  *    every supervisor under hundreds of individual alerts
  *
- * The PCT scan also hands per-case alerts to PctEmailService, which emails
- * the assigned officer. Unassigned backlogs stay in-app only.
+ * Per-case PCT alerts cover three levels — nearing (info), due today
+ * (warning) and beyond PCT (critical) — and feed the header bell and its
+ * desktop notifications. The PCT scan also hands per-case alerts to
+ * PctEmailService, which emails the assigned officer. Unassigned backlogs
+ * stay in-app only and count due-today / beyond cases.
  */
 class NotificationService
 {
+    /**
+     * Active accounts keyed by upper-cased name, for cases that carry only
+     * an officer's name. Loaded once per scan.
+     *
+     * @var array<string, User>|null
+     */
+    private ?array $accountsByName = null;
+
     public function __construct(
         private readonly PctService $pctService,
         private readonly PctEmailService $pctEmailService
@@ -80,8 +91,7 @@ class NotificationService
         */
 
         $escalated =
-            $notification->severity !== AppNotification::SEVERITY_CRITICAL
-            && $severity === AppNotification::SEVERITY_CRITICAL;
+            $this->severityRank($severity) > $this->severityRank($notification->severity);
 
         if ($resetRead || $escalated) {
             $attributes['read_at'] = null;
@@ -99,10 +109,15 @@ class NotificationService
      * condition has cleared are removed. Email alerts are sent once per
      * case and alert level, so re-running never re-sends them.
      *
+     * $sendEmails is false for the automatic refresh the notification bell
+     * triggers; emails go out from the scheduled / manual scan only.
+     *
      * @return array<string, int>
      */
-    public function scanPct(): array
+    public function scanPct(bool $sendEmails = true): array
     {
+        $this->accountsByName = null;
+
         $watchers = $this->watchers();
 
         $generated = [];
@@ -180,6 +195,40 @@ class NotificationService
 
                         $counts['alerts']++;
                     }
+
+                    foreach ($this->nearing($pct) as $alert) {
+                        $recipient = $this->recipientFor(
+                            $rfa,
+                            $alert['stage']
+                        );
+
+                        if ($recipient === null) {
+                            continue;
+                        }
+
+                        $notification = $this->push(
+                            user: $recipient,
+
+                            dedupeKey: "pct:{$alert['stage']}:{$rfa->id}",
+
+                            category: $alert['category'],
+
+                            severity: AppNotification::SEVERITY_INFO,
+
+                            title: $alert['title']
+                                . ' — ' . $rfa->displayReference(),
+
+                            message: $alert['message'],
+
+                            rfa: $rfa,
+
+                            actionUrl: route('rfas.show', $rfa)
+                        );
+
+                        $generated[] = $notification->id;
+
+                        $counts['alerts']++;
+                    }
                 }
             });
 
@@ -238,6 +287,10 @@ class NotificationService
         | Email alerts
         |--------------------------------------------------------------------------
         */
+
+        if (! $sendEmails) {
+            return $counts + ['emails_sent' => 0, 'emails_failed' => 0];
+        }
 
         return $counts + $this->pctEmailService->send($emailCandidates);
     }
@@ -328,6 +381,47 @@ class NotificationService
     }
 
     /**
+     * Active checkpoints approaching their deadline, alerted in-app to the
+     * assigned officer only (an unassigned backlog counts breaches alone).
+     *
+     * @param  array<string, mixed>  $pct
+     * @return array<int, array<string, string>>
+     */
+    private function nearing(array $pct): array
+    {
+        $alerts = [];
+
+        foreach ($pct['checkpoints'] as $key => $checkpoint) {
+            if (
+                $checkpoint['state'] !== 'active'
+                || $checkpoint['classification_key'] !== 'nearing'
+            ) {
+                continue;
+            }
+
+            $alerts[] = [
+                'stage' => $key,
+                'category' => $this->categoryFor($key),
+                'title' => $checkpoint['stage_label'] . ' nearing PCT',
+                'message' => 'Day ' . $checkpoint['days'] . ' of ' . $this->limitPhrase($checkpoint)
+                    . ' — due ' . $checkpoint['deadline']?->format('M d, Y')
+                    . ' (' . $checkpoint['remaining_days'] . ' day(s) left).',
+            ];
+        }
+
+        return $alerts;
+    }
+
+    private function severityRank(?string $severity): int
+    {
+        return match ($severity) {
+            AppNotification::SEVERITY_CRITICAL => 2,
+            AppNotification::SEVERITY_WARNING => 1,
+            default => 0,
+        };
+    }
+
+    /**
      * Active checkpoints worth emailing about.
      *
      * Wider than breaches(): the email also warns ahead ("nearing"), so the
@@ -395,9 +489,11 @@ class NotificationService
      */
     private function recipientFor(Rfa $rfa, string $stage): ?User
     {
-        $interviewer = $rfa->interviewer;
+        $interviewer = $rfa->interviewer
+            ?? $this->accountNamed($rfa->interviewer_name);
 
-        $seado = $rfa->seado;
+        $seado = $rfa->seado
+            ?? $this->accountNamed($rfa->seado_name);
 
         $candidate = in_array($stage, [
             PctService::SEADO_CONFERENCE,
@@ -409,6 +505,27 @@ class NotificationService
         return $candidate?->isActive()
             ? $candidate
             : null;
+    }
+
+    /**
+     * The active account whose name exactly matches an imported officer
+     * name (ignoring case and extra spaces), if there is one.
+     */
+    private function accountNamed(?string $name): ?User
+    {
+        $key = mb_strtoupper(preg_replace('/\s+/', ' ', trim((string) $name)));
+
+        if ($key === '') {
+            return null;
+        }
+
+        $this->accountsByName ??= User::query()
+            ->active()
+            ->get()
+            ->keyBy(fn (User $user) => mb_strtoupper(preg_replace('/\s+/', ' ', trim($user->name))))
+            ->all();
+
+        return $this->accountsByName[$key] ?? null;
     }
 
     private function categoryFor(string $stage): string

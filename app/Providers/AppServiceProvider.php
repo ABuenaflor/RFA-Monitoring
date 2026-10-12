@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Models\User;
 use App\Observers\AuditableObserver;
 use App\Services\AuditLogger;
+use App\Services\PctCalendar;
+use App\Services\SettingsService;
 use App\Support\Permissions;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
@@ -23,7 +25,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        /*
+        | One PCT calendar (counting mode + holidays) per request, so the
+        | holidays table is read once however many cases are evaluated.
+        | Forget the instance after editing holidays or the setting.
+        */
+
+        $this->app->scoped(
+            PctCalendar::class,
+            fn ($app) => PctCalendar::fromDatabase($app->make(SettingsService::class))
+        );
     }
 
     /**

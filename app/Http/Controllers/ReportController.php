@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Rfa;
 use App\Services\PctService;
+use App\Services\SettingsService;
+use App\Support\SystemSettings;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -409,16 +412,6 @@ $dispositionSummary = [
         $officialDispositionBreakdown
             ->sum(),
 
-    'official_missing' =>
-        $disposedRfas
-            ->filter(
-                fn (Rfa $rfa) =>
-                    blank(
-                        $rfa->disposition_status
-                    )
-            )
-            ->count(),
-
     'source_mode_recorded' =>
         $dispositionModeBreakdown
             ->sum(),
@@ -616,6 +609,18 @@ $dispositionSummary = [
 
         /*
         |--------------------------------------------------------------------------
+        | Settlement rate per SEADO, by conference phase
+        |--------------------------------------------------------------------------
+        */
+
+        $settledCodes = SystemSettings::parseCodes(
+            (string) app(SettingsService::class)->get(SystemSettings::SETTLED_DISPOSITION_MODES)
+        );
+
+        $seadoSettlement = $this->seadoSettlement($allRfas, $settledCodes);
+
+        /*
+        |--------------------------------------------------------------------------
         | Paginated report records
         |--------------------------------------------------------------------------
         */
@@ -769,6 +774,12 @@ $dispositionSummary = [
 
             'conferenceSummary' =>
             $conferenceSummary,
+
+            'seadoSettlement' =>
+                $seadoSettlement,
+
+            'settledCodes' =>
+                $settledCodes,
 
             'dispositionStatuses' =>
                 $dispositionStatuses,
@@ -1603,6 +1614,119 @@ public function print(
             'compliance_rate' => null,
         ];
     }
+    /**
+     * Settlement rate for every SEADO in the filtered report, with each
+     * settled case placed in the conference phase it was settled in.
+     *
+     * Settled = disposed with a source Mode in the "Settled Disposition
+     * Codes" setting, or an official disposition containing "settl".
+     * Rate = settled ÷ disposed.
+     *
+     * Phases, from the dates on the case:
+     *  - first   disposed on or before the 1st conference date
+     *  - second  disposed after the 1st, on or before the 2nd conference
+     *  - later   disposed after the last recorded conference
+     *  - unknown no 1st conference date, or no date disposed
+     *
+     * @param  Collection<int, Rfa>  $rfas
+     * @param  array<int, string>  $settledCodes
+     * @return array{rows: Collection<int, array<string, mixed>>, totals: array<string, mixed>}
+     */
+    private function seadoSettlement(Collection $rfas, array $settledCodes): array
+    {
+        $phases = ['first', 'second', 'later', 'unknown'];
+
+        $blank = fn (string $name) => [
+            'name' => $name,
+            'handled' => 0,
+            'disposed' => 0,
+            'settled' => 0,
+            'rate' => null,
+            'phases' => array_fill_keys($phases, 0),
+        ];
+
+        $rows = [];
+
+        $totals = $blank('All SEADOs');
+
+        foreach ($rfas as $rfa) {
+            $name = trim((string) $rfa->seado_name);
+
+            if ($name === '') {
+                continue;
+            }
+
+            $key = mb_strtoupper($name);
+
+            $rows[$key] ??= $blank($name);
+
+            $rows[$key]['handled']++;
+            $totals['handled']++;
+
+            if ($rfa->monitoring_bucket !== 'disposed' && $rfa->date_disposed === null) {
+                continue;
+            }
+
+            $rows[$key]['disposed']++;
+            $totals['disposed']++;
+
+            $settled = in_array(strtoupper(trim((string) $rfa->disposition_mode)), $settledCodes, true)
+                || str_contains(strtolower((string) $rfa->disposition_status), 'settl');
+
+            if (! $settled) {
+                continue;
+            }
+
+            $phase = $this->settlementPhase($rfa);
+
+            $rows[$key]['settled']++;
+            $rows[$key]['phases'][$phase]++;
+
+            $totals['settled']++;
+            $totals['phases'][$phase]++;
+        }
+
+        $rate = function (array $row): array {
+            $row['rate'] = $row['disposed'] > 0
+                ? round($row['settled'] / $row['disposed'] * 100, 1)
+                : null;
+
+            return $row;
+        };
+
+        return [
+            'rows' => collect($rows)
+                ->map($rate)
+                ->sort(fn (array $a, array $b) => [$b['rate'] ?? -1, $b['disposed'], $a['name']] <=> [$a['rate'] ?? -1, $a['disposed'], $b['name']])
+                ->values(),
+
+            'totals' => $rate($totals),
+        ];
+    }
+
+    private function settlementPhase(Rfa $rfa): string
+    {
+        $disposed = $rfa->date_disposed;
+
+        $first = $rfa->date_initial_conference;
+
+        $second = $rfa->date_second_conference;
+
+        if ($disposed === null || $first === null) {
+            return 'unknown';
+        }
+
+        if ($disposed->lte($first)) {
+            return 'first';
+        }
+
+        if ($second !== null && $disposed->lte($second)) {
+            return 'second';
+        }
+
+        return 'later';
+    }
+
     private function emptySeadoCheckpointSummary(): array
 {
     return [
@@ -1740,8 +1864,13 @@ private function addSeadoCheckpointResult(
 
     /*
     |--------------------------------------------------------------------------
-    | Incomplete / invalid historical information
+    | Indeterminate: the checkpoint could not be rated
     |--------------------------------------------------------------------------
+    |
+    | Start date missing, completion date missing after the case moved on,
+    | mode of filing missing (PCT 1), or invalid dates. Kept out of the
+    | compliance rate.
+    |
     */
 
     if (
@@ -1750,6 +1879,7 @@ private function addSeadoCheckpointResult(
             [
                 'missing_start',
                 'missing_end',
+                'missing_mode',
                 'invalid',
             ],
             true

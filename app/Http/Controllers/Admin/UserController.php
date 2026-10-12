@@ -298,6 +298,48 @@ class UserController extends Controller
             );
     }
 
+    /**
+     * Disable or enable an account in one click from the directory.
+     *
+     * A disabled account cannot sign in and is signed out on its next
+     * request; nothing else about it changes, so enabling it restores
+     * access exactly as it was.
+     */
+    public function toggleStatus(
+        Request $request,
+        User $user
+    ): RedirectResponse {
+        if ($user->isActive()) {
+            if ($user->id === $request->user()->id) {
+                return back()->withErrors([
+                    'user' => 'You cannot disable your own account.',
+                ]);
+            }
+
+            if ($this->isLastActiveAdministrator($user)) {
+                return back()->withErrors([
+                    'user' => 'This is the last active administrator and cannot be disabled.',
+                ]);
+            }
+
+            $user->status = User::STATUS_INACTIVE;
+
+            $user->deactivated_at = now();
+
+            $message = $user->name . '\'s account has been disabled. They can no longer sign in.';
+        } else {
+            $user->status = User::STATUS_ACTIVE;
+
+            $user->deactivated_at = null;
+
+            $message = $user->name . '\'s account has been enabled.';
+        }
+
+        $user->save();
+
+        return back()->with('status', $message);
+    }
+
     public function destroy(
         Request $request,
         User $user

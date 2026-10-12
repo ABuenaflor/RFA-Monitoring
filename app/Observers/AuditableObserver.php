@@ -4,8 +4,10 @@ namespace App\Observers;
 
 use App\Models\AppNotification;
 use App\Models\AuditLog;
+use App\Models\Holiday;
 use App\Models\Rfa;
 use App\Models\Role;
+use App\Models\RouletteExclusion;
 use App\Models\RfaActivity;
 use App\Models\User;
 use App\Services\AuditLogger;
@@ -84,6 +86,12 @@ class AuditableObserver
             $model instanceof Role =>
                 'Role ' . $model->name,
 
+            $model instanceof Holiday =>
+                'Holiday ' . $model->date?->format('M d, Y') . ' ' . $model->name,
+
+            $model instanceof RouletteExclusion =>
+                'Roulette exclusion ' . $model->seado_name,
+
             default =>
                 class_basename($model) . ' #' . $model->getKey(),
         };
@@ -95,6 +103,8 @@ class AuditableObserver
             $model instanceof Rfa => 'RFA record created',
             $model instanceof User => 'User account created',
             $model instanceof Role => 'Role created',
+            $model instanceof Holiday => 'Holiday / event added',
+            $model instanceof RouletteExclusion => 'SEADO excluded from the roulette',
             default => 'Record created',
         };
     }
@@ -114,6 +124,8 @@ class AuditableObserver
             Rfa::class,
             User::class,
             Role::class,
+            Holiday::class,
+            RouletteExclusion::class,
         ];
     }
 

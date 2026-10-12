@@ -9,6 +9,8 @@ use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\HolidayController;
+use App\Http\Controllers\NotificationFeedController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\PctCycleTimeController;
 use App\Http\Controllers\PctProcessController;
@@ -16,6 +18,8 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RfaCaseController;
 use App\Http\Controllers\RfaController;
 use App\Http\Controllers\RfaImportController;
+use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\SeadoAssignmentController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -86,6 +90,106 @@ Route::middleware('auth')->group(function () {
         '/account/password',
         [ProfileController::class, 'updatePassword']
     )->name('account.password');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Notification Bell
+    |--------------------------------------------------------------------------
+    |
+    | The signed-in user's own alerts only, so no permission is needed.
+    |
+    */
+
+    Route::get(
+        '/notifications/feed',
+        [NotificationFeedController::class, 'feed']
+    )->name('notifications.feed');
+
+    Route::get(
+        '/notifications/{notification}/open',
+        [NotificationFeedController::class, 'open']
+    )->name('notifications.open');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | My Conference Schedule
+    |--------------------------------------------------------------------------
+    |
+    | Always the signed-in user's own conferences; there is no parameter
+    | for viewing anyone else's.
+    |
+    */
+
+    Route::get(
+        '/schedule',
+        [ScheduleController::class, 'index']
+    )->name('schedule.index');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Holidays & Events (skipped by the PCT working-day clock)
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        '/holidays',
+        [HolidayController::class, 'index']
+    )
+        ->middleware('can:pct.view')
+        ->name('holidays.index');
+
+    Route::middleware('can:holidays.manage')->group(function () {
+
+        Route::post(
+            '/holidays',
+            [HolidayController::class, 'store']
+        )->name('holidays.store');
+
+        Route::put(
+            '/holidays/{holiday}',
+            [HolidayController::class, 'update']
+        )->name('holidays.update');
+
+        Route::delete(
+            '/holidays/{holiday}',
+            [HolidayController::class, 'destroy']
+        )->name('holidays.destroy');
+
+    });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SEADO Assignment
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('can:rfa.assign')->group(function () {
+
+        Route::get(
+            '/seado-assignment',
+            [SeadoAssignmentController::class, 'index']
+        )->name('seado-assignment.index');
+
+        Route::post(
+            '/seado-assignment/exclusions',
+            [SeadoAssignmentController::class, 'exclude']
+        )->name('seado-assignment.exclusions.store');
+
+        Route::delete(
+            '/seado-assignment/exclusions/{exclusion}',
+            [SeadoAssignmentController::class, 'include']
+        )->name('seado-assignment.exclusions.destroy');
+
+        Route::post(
+            '/seado-assignment/{rfa}',
+            [SeadoAssignmentController::class, 'assign']
+        )->name('seado-assignment.assign');
+
+    });
 
 
     /*
@@ -297,6 +401,11 @@ Route::middleware('auth')->group(function () {
                     '/{user}',
                     [UserController::class, 'update']
                 )->name('update');
+
+                Route::patch(
+                    '/{user}/status',
+                    [UserController::class, 'toggleStatus']
+                )->name('toggle-status');
 
                 Route::delete(
                     '/{user}',

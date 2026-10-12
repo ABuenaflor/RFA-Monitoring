@@ -3,12 +3,32 @@
 namespace Tests\Unit;
 
 use App\Models\Rfa;
+use App\Services\PctCalendar;
 use App\Services\PctService;
 use Carbon\Carbon;
 use Tests\TestCase;
 
 class PctServiceTest extends TestCase
 {
+    /**
+     * The rule tests below were written in calendar days; the working-day
+     * tests at the end swap in their own calendar.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->useCalendar(PctCalendar::MODE_CALENDAR);
+    }
+
+    /**
+     * @param  array<string, string>  $holidays
+     */
+    private function useCalendar(string $mode, array $holidays = []): void
+    {
+        $this->app->instance(PctCalendar::class, new PctCalendar($mode, $holidays));
+    }
+
     protected function tearDown(): void
     {
         Carbon::setTestNow();
@@ -366,5 +386,99 @@ class PctServiceTest extends TestCase
         $this->assertSame('completed', $result['total_processing']['state']);
         $this->assertSame(60, $result['total_processing']['days']);
         $this->assertArrayNotHasKey('classification_key', $result['total_processing']);
+    }
+    /*
+    |--------------------------------------------------------------------------
+    | Working days and holidays
+    |--------------------------------------------------------------------------
+    */
+
+    public function test_working_days_skip_the_weekend(): void
+    {
+        $this->useCalendar(PctCalendar::MODE_WORKING);
+
+        // Thu 2026-01-08 → Tue 2026-01-13: Fri, Mon, Tue = 3 working days.
+        $result = $this->checkpoint(PctService::ASSIGNMENT_INTERVIEW, [
+            'date_assigned_interviewer' => '2026-01-08',
+            'date_interview' => '2026-01-13',
+        ]);
+
+        $this->assertRated($result, 'completed', 3, 'on');
+        $this->assertSame('2026-01-13', $result['deadline']->format('Y-m-d'));
+    }
+
+    public function test_working_days_skip_holidays_and_events(): void
+    {
+        $this->useCalendar(PctCalendar::MODE_WORKING, [
+            '2026-01-12' => 'Special non-working day',
+        ]);
+
+        // Thu 2026-01-08 → Tue 2026-01-13 with Monday off: Fri, Tue = 2.
+        $result = $this->checkpoint(PctService::ASSIGNMENT_INTERVIEW, [
+            'date_assigned_interviewer' => '2026-01-08',
+            'date_interview' => '2026-01-13',
+        ]);
+
+        $this->assertRated($result, 'completed', 2, 'nearing');
+        $this->assertSame('2026-01-14', $result['deadline']->format('Y-m-d'));
+    }
+
+    public function test_a_holiday_on_a_weekend_changes_nothing(): void
+    {
+        $calendar = new PctCalendar(PctCalendar::MODE_WORKING, [
+            '2026-01-10' => 'Saturday event',
+        ]);
+
+        $this->assertSame(
+            5,
+            $calendar->daysBetween(Carbon::parse('2026-01-05'), Carbon::parse('2026-01-12'))
+        );
+
+        $this->assertFalse($calendar->isWorkingDay(Carbon::parse('2026-01-10')));
+        $this->assertSame('Saturday event', $calendar->holidayName(Carbon::parse('2026-01-10')));
+    }
+
+    public function test_an_active_clock_does_not_age_over_the_weekend(): void
+    {
+        $this->useCalendar(PctCalendar::MODE_WORKING);
+
+        // Started Fri 2026-01-09, checked on Sun 2026-01-11: still day 0.
+        $result = $this->checkpoint(PctService::ASSIGNMENT_INTERVIEW, [
+            'date_assigned_interviewer' => '2026-01-09',
+        ], '2026-01-11');
+
+        $this->assertRated($result, 'active', 0, 'within');
+    }
+
+    public function test_working_day_end_before_start_is_still_invalid(): void
+    {
+        $this->useCalendar(PctCalendar::MODE_WORKING);
+
+        // Sunday back to Saturday: no working day between, still invalid.
+        $result = $this->checkpoint(PctService::SEADO_CONFERENCE, [
+            'date_assigned_seado' => '2026-01-11',
+            'date_initial_conference' => '2026-01-10',
+        ]);
+
+        $this->assertSame('invalid', $result['state']);
+    }
+
+    public function test_long_spans_match_a_day_by_day_count(): void
+    {
+        $holidays = ['2026-02-25' => 'A', '2026-04-09' => 'B', '2026-05-01' => 'C'];
+
+        $calendar = new PctCalendar(PctCalendar::MODE_WORKING, $holidays);
+
+        $start = Carbon::parse('2026-01-01');
+
+        $expected = 0;
+
+        for ($date = $start->copy()->addDay(); $date->lte('2026-06-30'); $date->addDay()) {
+            if (! $date->isWeekend() && ! isset($holidays[$date->format('Y-m-d')])) {
+                $expected++;
+            }
+
+            $this->assertSame($expected, $calendar->daysBetween($start, $date), $date->format('Y-m-d'));
+        }
     }
 }

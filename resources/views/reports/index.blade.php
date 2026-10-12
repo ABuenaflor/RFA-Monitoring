@@ -1442,6 +1442,26 @@
                 filters.
             </p>
 
+            <div
+                class="mt-3 rounded-xl
+                       border border-amber-200
+                       bg-amber-50 px-4 py-3
+                       text-sm leading-6
+                       text-amber-900"
+            >
+                <strong>Indeterminate</strong> means the checkpoint
+                could not be rated, so it is counted in neither
+                Completed nor Active and does not affect the
+                compliance rate. This happens when:
+                the start date is missing (no date input);
+                the completion date is missing although the case
+                has already moved to a later stage;
+                the mode of filing is missing (PCT 1 only, so the
+                same-day / 2-day limit cannot be applied); or the
+                dates are invalid (completion earlier than start,
+                or a start date in the future).
+            </div>
+
         </div>
 
 
@@ -1685,6 +1705,175 @@
     </section>
 
 @endif
+
+        {{-- ========================================================= --}}
+        {{-- SEADO SETTLEMENT RATE --}}
+        {{-- ========================================================= --}}
+
+        @php
+            $settlementPhases = [
+                'first' => ['label' => '1st Conference', 'bar' => 'bg-emerald-500'],
+                'second' => ['label' => '2nd Conference', 'bar' => 'bg-teal-400'],
+                'later' => ['label' => 'Later', 'bar' => 'bg-amber-400'],
+                'unknown' => ['label' => 'No Conf. Date', 'bar' => 'bg-slate-300'],
+            ];
+
+            $settlementTotals = $seadoSettlement['totals'];
+        @endphp
+
+        <section
+            id="seado-settlement"
+            class="report-card overflow-hidden rounded-2xl
+                   border border-slate-200 bg-white shadow-sm"
+        >
+
+            <div class="flex flex-col justify-between gap-4 border-b border-slate-100 px-6 py-5 lg:flex-row lg:items-start">
+
+                <div>
+
+                    <p class="text-xs font-bold uppercase tracking-[0.15em] text-emerald-600">
+                        SEADO Settlement Rate
+                    </p>
+
+                    <h2 class="mt-1 text-lg font-bold text-slate-950">
+                        Settlement rate per SEADO, by conference phase
+                    </h2>
+
+                    <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
+                        Settlement rate = settled ÷ disposed RFAs, for the
+                        current filters. A case counts as settled when its
+                        source disposition code is
+                        <strong class="text-slate-700">{{ implode(', ', $settledCodes) ?: '—' }}</strong>
+                        (change this under System Settings). Each settled case
+                        is placed in the phase it was settled in: on or before
+                        the 1st conference, by the 2nd conference, later than
+                        the last recorded conference, or with no conference
+                        date on record.
+                    </p>
+
+                </div>
+
+                <div class="shrink-0 rounded-xl bg-emerald-50 px-5 py-3 text-right">
+                    <p class="text-3xl font-bold text-emerald-900">
+                        {{ $settlementTotals['rate'] !== null ? $settlementTotals['rate'] . '%' : '—' }}
+                    </p>
+                    <p class="text-xs text-emerald-700">
+                        {{ number_format($settlementTotals['settled']) }} of
+                        {{ number_format($settlementTotals['disposed']) }} disposed settled
+                    </p>
+                </div>
+
+            </div>
+
+            {{-- Phase legend with overall split --}}
+
+            <div class="flex flex-wrap gap-x-5 gap-y-2 border-b border-slate-100 px-6 py-3 text-xs text-slate-600">
+                @foreach ($settlementPhases as $phaseKey => $phase)
+                    <span class="inline-flex items-center gap-1.5">
+                        <span class="h-2.5 w-2.5 rounded-full {{ $phase['bar'] }}"></span>
+                        {{ $phase['label'] }}:
+                        <strong class="text-slate-900">{{ number_format($settlementTotals['phases'][$phaseKey]) }}</strong>
+                    </span>
+                @endforeach
+            </div>
+
+            <div class="max-h-[40rem] overflow-auto">
+
+                <table class="w-full min-w-[1000px] divide-y divide-slate-200">
+
+                    <thead class="sticky top-0 bg-slate-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">SEADO</th>
+                            <th class="px-4 py-3 text-right text-xs font-bold uppercase text-slate-500">Handled</th>
+                            <th class="px-4 py-3 text-right text-xs font-bold uppercase text-slate-500">Disposed</th>
+                            <th class="px-4 py-3 text-right text-xs font-bold uppercase text-slate-500">Settled</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">Settlement Rate</th>
+                            @foreach ($settlementPhases as $phase)
+                                <th class="px-4 py-3 text-right text-xs font-bold uppercase text-slate-500">{{ $phase['label'] }}</th>
+                            @endforeach
+                        </tr>
+                    </thead>
+
+                    <tbody class="divide-y divide-slate-100">
+
+                        @forelse ($seadoSettlement['rows'] as $row)
+
+                            <tr class="transition hover:bg-slate-50/80">
+
+                                <td class="px-4 py-3 text-sm font-semibold text-slate-900">{{ $row['name'] }}</td>
+
+                                <td class="px-4 py-3 text-right text-sm text-slate-700">{{ number_format($row['handled']) }}</td>
+
+                                <td class="px-4 py-3 text-right text-sm text-slate-700">{{ number_format($row['disposed']) }}</td>
+
+                                <td class="px-4 py-3 text-right text-sm font-semibold text-slate-900">{{ number_format($row['settled']) }}</td>
+
+                                <td class="px-4 py-3">
+
+                                    @if ($row['rate'] !== null)
+
+                                        <div class="flex items-center gap-3">
+
+                                            <span class="w-14 text-sm font-bold text-slate-950">{{ $row['rate'] }}%</span>
+
+                                            {{-- Bar = settlement rate, split by phase --}}
+                                            <span
+                                                class="flex h-2.5 w-40 overflow-hidden rounded-full bg-slate-100"
+                                                title="{{ collect($settlementPhases)->map(fn ($phase, $key) => $phase['label'] . ': ' . $row['phases'][$key])->implode(' · ') }}"
+                                            >
+                                                @foreach ($settlementPhases as $phaseKey => $phase)
+                                                    @if ($row['phases'][$phaseKey] > 0)
+                                                        <span
+                                                            class="block h-full {{ $phase['bar'] }}"
+                                                            style="width: {{ round($row['phases'][$phaseKey] / $row['disposed'] * 100, 2) }}%"
+                                                        ></span>
+                                                    @endif
+                                                @endforeach
+                                            </span>
+
+                                        </div>
+
+                                    @else
+
+                                        <span class="text-xs text-slate-400">No disposed cases</span>
+
+                                    @endif
+
+                                </td>
+
+                                @foreach ($settlementPhases as $phaseKey => $phase)
+
+                                    <td class="px-4 py-3 text-right text-sm text-slate-700">
+                                        {{ number_format($row['phases'][$phaseKey]) }}
+                                        @if ($row['settled'] > 0)
+                                            <span class="block text-[11px] text-slate-400">
+                                                {{ round($row['phases'][$phaseKey] / $row['settled'] * 100) }}%
+                                            </span>
+                                        @endif
+                                    </td>
+
+                                @endforeach
+
+                            </tr>
+
+                        @empty
+
+                            <tr>
+                                <td colspan="9" class="px-6 py-14 text-center text-sm text-slate-500">
+                                    No cases with a SEADO match the current filters.
+                                </td>
+                            </tr>
+
+                        @endforelse
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </section>
+
         {{-- ========================================================= --}}
         {{-- DISPOSITION RESULTS --}}
         {{-- ========================================================= --}}
@@ -1771,7 +1960,7 @@
             <div
                 class="mt-6 grid
                     grid-cols-1 gap-4
-                    sm:grid-cols-3"
+                    sm:grid-cols-2"
             >
 
                 <div
@@ -1799,39 +1988,6 @@
                             number_format(
                                 $dispositionSummary[
                                     'official_recorded'
-                                ]
-                            )
-                        }}
-                    </p>
-
-                </div>
-
-
-                <div
-                    class="rounded-xl
-                        border border-amber-200
-                        bg-amber-50
-                        p-4"
-                >
-
-                    <p
-                        class="text-xs font-bold
-                            uppercase
-                            tracking-wide
-                            text-amber-700"
-                    >
-                        Official Disposition Missing
-                    </p>
-
-                    <p
-                        class="mt-2
-                            text-3xl font-bold
-                            text-amber-950"
-                    >
-                        {{
-                            number_format(
-                                $dispositionSummary[
-                                    'official_missing'
                                 ]
                             )
                         }}

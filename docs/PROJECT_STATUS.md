@@ -41,6 +41,29 @@
 
 All enhancement phases (A–I) are complete.
 
+## Enhancements requested 2026-10-06
+
+| Scope | Status |
+| --- | --- |
+| PCT counts **working days** (Mon–Fri) and skips admin-entered holidays/events (`PctCalendar`, `holidays` table, setting *PCT Day Counting*) | Complete — **run `php artisan migrate`** |
+| Schedule → **Holidays & Events** page (view: `pct.view`; add/edit/delete: new `holidays.manage`, Administrator) | Complete |
+| Schedule → **My Conference Schedule**: weekly calendar of the signed-in user's own 1st/2nd conferences | Complete |
+| **SEADO Assignment** page: workload per SEADO by province, queue of open RFAs with no SEADO, “Assign to a SEADO” offers the 5 least-handled SEADOs in the case's office | Complete |
+| Users & Access: one-click **Disable / Enable** per account | Complete |
+| **Notification bell** in the header (nearing / due today / beyond PCT) with desktop notifications; in-app *nearing* alerts added to the PCT scan | Complete |
+| Reports: **SEADO Settlement Rate** card split by conference phase (settled codes = setting *Settled Disposition Codes*, default `SC`) | Complete |
+| Reports: “Official Disposition Missing” card removed; “Indeterminate” defined on SEADO PCT Performance | Complete |
+| Process Cycle Time: PCT 5 with no 1st Conference reads “No Date Input” | Complete |
+
+Notes:
+- Imported cases carry only officer **names**. The conference schedule, the
+  bell and PCT alerts match a case to a user account whose name is exactly the
+  same (case and extra spaces ignored), as well as by assigned account.
+- Desktop notifications use the browser Notification API: they appear while
+  the system is open in a tab, and only on HTTPS or `localhost`.
+- The bell refreshes every PCT alert at most once an hour (in-app only); the
+  daily 07:00 scan still sends the emails.
+
 Phases 7–11 are implemented, tested and verified against the live database.
 Phase 11 provides the UAT plan and sign-off register; **user acceptance testing
 itself is still to be performed** by the organisation — the system records it
@@ -90,7 +113,9 @@ These are deliberate, not defects:
   3. Date Interviewed - SEADO Assignment — 3 days
   4. SEADO Assignment - 1st Conference — 10 days
   5. 1st Conference - Date Disposed — 30 days
-- Calendar days, start day = day 0. The deadline day is **On PCT** and
+- Working days (Mon–Fri, skipping Holidays & Events) by default; calendar days
+  if System Settings → PCT Day Counting says so. Start day = day 0. The
+  deadline day is **On PCT** and
   compliant; past it is Beyond. Nearing is the day before the deadline, or the
   last 3 days for the 10- and 30-day rules. On-site day 0 is On PCT.
 - A blank mode of filing is **not rated** on checkpoint 1 (Mode of Filing
@@ -104,7 +129,8 @@ These are deliberate, not defects:
 - A missing historical interview date does not become a Beyond PCT result
 
 These are enforced in `app/Services/PctService.php` and are deliberately absent
-from System Settings.
+from System Settings — except how days are counted (working or calendar), which
+is the *PCT Day Counting* setting, and the holidays, which administrators manage.
 
 ## Documentation
 

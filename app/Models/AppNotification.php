@@ -54,6 +54,33 @@ class AppNotification extends Model
         return $this->read_at !== null;
     }
 
+    public function isPct(): bool
+    {
+        return str_starts_with((string) $this->category, 'pct_');
+    }
+
+    /**
+     * For PCT alerts, the level the severity stands for:
+     * info = nearing, warning = due today, critical = beyond PCT.
+     */
+    public function pctLevel(): ?string
+    {
+        if (! $this->isPct()) {
+            return null;
+        }
+
+        return match ($this->severity) {
+            self::SEVERITY_CRITICAL => 'beyond',
+            self::SEVERITY_WARNING => 'due',
+            default => 'nearing',
+        };
+    }
+
+    public function scopePct(Builder $query): Builder
+    {
+        return $query->where('category', 'like', 'pct_%');
+    }
+
     public function accent(): string
     {
         return match ($this->severity) {

@@ -88,7 +88,7 @@
                 <span class="font-semibold text-slate-600">
                     {{ $asOf->format('F d, Y') }}
                 </span>
-                · Calendar days, start day = day 0
+                · {{ app(\App\Services\PctCalendar::class)->countsWorkingDays() ? 'Working days (Mon–Fri, holidays & events skipped)' : 'Calendar days' }}, start day = day 0
                 ·
                 <span class="font-semibold text-slate-600">
                     {{ $officeLabel ?? 'All offices' }}
@@ -594,7 +594,12 @@
 
                                         <p class="mt-2">
                                             <span class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold {{ $tone['chip'] }}">
-                                                {{ \App\Services\PctService::statusLabel($checkpoint) }}
+                                                {{-- PCT 5 has no 1st Conference yet: "No Date Input" --}}
+                                                @if ($checkpoint['stage_key'] === \App\Services\PctService::CONFERENCE_DISPOSED && $checkpoint['state'] === 'missing_start')
+                                                    No Date Input
+                                                @else
+                                                    {{ \App\Services\PctService::statusLabel($checkpoint) }}
+                                                @endif
                                             </span>
                                         </p>
 

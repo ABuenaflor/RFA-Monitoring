@@ -8,8 +8,9 @@
     |--------------------------------------------------------------------------
     |
     | Each item renders only when its route exists AND the signed-in user
-    | holds the matching permission. Hiding a link is a convenience only —
-    | every route is independently guarded by the same gate.
+    | holds the matching permission (a null permission means every signed-in
+    | user). Children may carry their own permission. Hiding a link is a
+    | convenience only — every route is independently guarded by the same gate.
     |
     */
 
@@ -47,6 +48,29 @@
                     [
                         'label' => 'Process Cycle Time',
                         'route' => 'pct-cycle-time',
+                    ],
+                ],
+            ],
+            [
+                'label' => 'SEADO Assignment',
+                'route' => 'seado-assignment.index',
+                'icon' => 'seado-assignment',
+                'permission' => Permissions::RFA_ASSIGN,
+            ],
+            [
+                'label' => 'Schedule',
+                'route' => 'schedule.index',
+                'icon' => 'calendar',
+                'permission' => null,
+                'children' => [
+                    [
+                        'label' => 'My Conference Schedule',
+                        'route' => 'schedule.index',
+                    ],
+                    [
+                        'label' => 'Holidays & Events',
+                        'route' => 'holidays.index',
+                        'permission' => Permissions::PCT_VIEW,
                     ],
                 ],
             ],
@@ -253,7 +277,10 @@
                         fn ($item) =>
                             \Illuminate\Support\Facades\Route::has($item['route'])
                             && auth()->check()
-                            && auth()->user()->hasPermission($item['permission'])
+                            && (
+                                ($item['permission'] ?? null) === null
+                                || auth()->user()->hasPermission($item['permission'])
+                            )
                     );
 
             @endphp
@@ -283,7 +310,11 @@
 
                             @php
                                 $children = collect($item['children'])
-                                    ->filter(fn ($child) => \Illuminate\Support\Facades\Route::has($child['route']));
+                                    ->filter(fn ($child) => \Illuminate\Support\Facades\Route::has($child['route'])
+                                        && (
+                                            ! isset($child['permission'])
+                                            || auth()->user()->hasPermission($child['permission'])
+                                        ));
 
                                 $isActive = $children->contains(
                                     fn ($child) => request()->routeIs($child['route'])

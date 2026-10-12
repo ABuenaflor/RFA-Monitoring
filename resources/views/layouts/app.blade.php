@@ -279,6 +279,13 @@
                     @yield('page_actions')
 
 
+                    {{-- NOTIFICATION BELL --}}
+
+                    @auth
+                        @include('components.notification-bell')
+                    @endauth
+
+
                     {{-- ACCOUNT MENU --}}
 
                     @auth
