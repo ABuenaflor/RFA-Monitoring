@@ -222,6 +222,8 @@ class GovernanceTest extends TestCase
                     SystemSettings::LISTING_PER_PAGE => 20,
                     SystemSettings::AUDIT_RETENTION_DAYS => 365,
                     SystemSettings::BACKUP_RETENTION_COUNT => 5,
+                    SystemSettings::PCT_DAY_COUNTING => 'working',
+                    SystemSettings::SETTLED_DISPOSITION_MODES => 'SC',
                 ],
             ])
             ->assertRedirect(route('admin.settings.index'));
@@ -249,6 +251,8 @@ class GovernanceTest extends TestCase
                     SystemSettings::LISTING_PER_PAGE => 999,
                     SystemSettings::AUDIT_RETENTION_DAYS => 30,
                     SystemSettings::BACKUP_RETENTION_COUNT => 5,
+                    SystemSettings::PCT_DAY_COUNTING => 'working',
+                    SystemSettings::SETTLED_DISPOSITION_MODES => 'SC',
                 ],
             ])
             ->assertSessionHasErrors('settings.' . SystemSettings::LISTING_PER_PAGE);
@@ -289,6 +293,8 @@ class GovernanceTest extends TestCase
                     SystemSettings::LISTING_PER_PAGE => 10,
                     SystemSettings::AUDIT_RETENTION_DAYS => 0,
                     SystemSettings::BACKUP_RETENTION_COUNT => 10,
+                    SystemSettings::PCT_DAY_COUNTING => 'working',
+                    SystemSettings::SETTLED_DISPOSITION_MODES => 'SC',
                 ],
             ]);
 

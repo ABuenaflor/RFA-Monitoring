@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Support\Workflow;
 use Database\Factories\RfaFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -135,6 +136,32 @@ class Rfa extends Model
         return $this->belongsTo(
             User::class,
             'seado_id'
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Scopes
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Cases whose SEADO is this user: assigned to their account, or (for
+     * imported cases that only carry a name) whose SEADO name is exactly
+     * the user's name, ignoring case and surrounding spaces.
+     */
+    public function scopeHandledBySeado(Builder $query, User $user): Builder
+    {
+        $name = mb_strtoupper(trim((string) $user->name));
+
+        return $query->where(
+            fn (Builder $inner) => $inner
+                ->where('seado_id', $user->id)
+                ->orWhere(
+                    fn (Builder $byName) => $byName
+                        ->whereNull('seado_id')
+                        ->whereRaw('UPPER(TRIM(seado_name)) = ?', [$name])
+                )
         );
     }
 

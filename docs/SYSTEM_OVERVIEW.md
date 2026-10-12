@@ -253,8 +253,10 @@ The service tracks **five checkpoints** per case, in workflow order
 | 4 | SEADO Assignment - 1st Conference (`seado_conference`) | `date_assigned_seado` → `date_initial_conference` | 10 days |
 | 5 | 1st Conference - Date Disposed (`conference_disposed`) | `date_initial_conference` → `date_disposed` | 30 days |
 
-Elapsed calendar days (start day = day 0) are classified against the
-checkpoint's own limit (`PctService::classify()`):
+Elapsed days (start day = day 0) are counted by `PctCalendar`: working days
+(Mon–Fri, skipping the `holidays` table) unless the `pct_day_counting`
+setting is `calendar`. They are classified against the checkpoint's own
+limit (`PctService::classify()`):
 
 - **Beyond PCT** — past the limit.
 - **On PCT** — the deadline day itself; still compliant.

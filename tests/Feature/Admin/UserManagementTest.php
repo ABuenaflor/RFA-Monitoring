@@ -332,4 +332,82 @@ class UserManagementTest extends TestCase
             ->post(route('admin.access.store'), [])
             ->assertForbidden();
     }
+    /*
+    |--------------------------------------------------------------------------
+    | Disable / enable from the directory
+    |--------------------------------------------------------------------------
+    */
+
+    public function test_an_account_can_be_disabled_and_enabled_from_the_directory(): void
+    {
+        $user = User::factory()->withRole('seado')->create();
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.access.index'))
+            ->assertOk()
+            ->assertSee(route('admin.access.toggle-status', $user), false)
+            ->assertSeeText('Disable');
+
+        $this->actingAs($this->admin)
+            ->patch(route('admin.access.toggle-status', $user))
+            ->assertRedirect()
+            ->assertSessionHas('status');
+
+        $user->refresh();
+
+        $this->assertFalse($user->isActive());
+        $this->assertNotNull($user->deactivated_at);
+
+        $this->post(route('logout'));
+
+        $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+
+        $this->actingAs($this->admin)
+            ->patch(route('admin.access.toggle-status', $user))
+            ->assertSessionHas('status');
+
+        $user->refresh();
+
+        $this->assertTrue($user->isActive());
+        $this->assertNull($user->deactivated_at);
+    }
+
+    public function test_you_cannot_disable_yourself_or_the_last_administrator(): void
+    {
+        $this->actingAs($this->admin)
+            ->patch(route('admin.access.toggle-status', $this->admin))
+            ->assertSessionHasErrors('user');
+
+        $this->assertTrue($this->admin->fresh()->isActive());
+
+        $managerRole = Role::create(['name' => 'User Manager', 'slug' => 'user-manager']);
+
+        $managerRole->syncPermissions(['users.view', 'users.manage']);
+
+        $manager = User::factory()->withRole($managerRole)->create();
+
+        $this->actingAs($manager)
+            ->patch(route('admin.access.toggle-status', $this->admin))
+            ->assertSessionHasErrors('user');
+
+        $this->assertTrue($this->admin->fresh()->isActive());
+    }
+
+    public function test_disabling_needs_the_manage_permission(): void
+    {
+        $viewer = User::factory()->withRole('viewer')->create();
+
+        $target = User::factory()->withRole('seado')->create();
+
+        $this->actingAs($viewer)
+            ->patch(route('admin.access.toggle-status', $target))
+            ->assertForbidden();
+
+        $this->assertTrue($target->fresh()->isActive());
+    }
 }

@@ -51,7 +51,7 @@
                 >
                     {{ $asOf->format('F d, Y') }}
                 </span>
-                · Calendar-day calculation
+                · {{ app(\App\Services\PctCalendar::class)->countsWorkingDays() ? 'Working-day calculation (Mon–Fri, holidays & events skipped)' : 'Calendar-day calculation' }}
                 ·
                 <span
                     class="font-semibold

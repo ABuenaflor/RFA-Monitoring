@@ -17,8 +17,10 @@ use Carbon\Carbon;
  *  4. SEADO Assignment - 1st Conference                 10 days
  *  5. 1st Conference - Date Disposed                    30 days
  *
- * Days are calendar days and the start day is day 0. Each checkpoint is
- * rated against its own limit:
+ * Days are counted by PctCalendar: working days (Monday to Friday, skipping
+ * the holidays and events entered by an administrator) unless the "PCT Day
+ * Counting" setting says calendar days. The start day is day 0. Each
+ * checkpoint is rated against its own limit:
  *
  *  - Beyond PCT  past the limit
  *  - On PCT      the deadline day itself (still compliant)
@@ -28,6 +30,20 @@ use Carbon\Carbon;
  */
 class PctService
 {
+    public function __construct(
+        private ?PctCalendar $calendar = null
+    ) {
+    }
+
+    /**
+     * The counting calendar, resolved lazily so the service can be built
+     * anywhere without touching the database.
+     */
+    public function calendar(): PctCalendar
+    {
+        return $this->calendar ??= app(PctCalendar::class);
+    }
+
     public const FILING_ASSIGNMENT = 'filing_assignment';
 
     public const ASSIGNMENT_INTERVIEW = 'assignment_interview';
@@ -309,7 +325,7 @@ class PctService
 
         $base['limit_days'] = $limit;
 
-        $deadline = $startDate->copy()->addDays($limit);
+        $deadline = $this->calendar()->addDays($startDate, $limit);
 
         /*
         | Completed
@@ -482,7 +498,7 @@ class PctService
 
     private function daysBetween(Carbon $start, Carbon $end): int
     {
-        return (int) $start->diffInDays($end, false);
+        return $this->calendar()->daysBetween($start, $end);
     }
 
     /**

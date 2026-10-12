@@ -117,13 +117,20 @@
                                            bg-white px-4 py-3 text-sm"
                                 >
 
-                                    @foreach ($definition['options'] as $option)
+                                    {{-- Options are either a plain list or value => label --}}
+                                    @foreach ($definition['options'] as $optionKey => $optionLabel)
+
+                                        @php
+                                            $option = array_is_list($definition['options'])
+                                                ? $optionLabel
+                                                : $optionKey;
+                                        @endphp
 
                                         <option
                                             value="{{ $option }}"
                                             @selected((string) old('settings.' . $key, $values[$key]) === (string) $option)
                                         >
-                                            {{ $option }}
+                                            {{ $optionLabel }}
                                         </option>
 
                                     @endforeach
@@ -242,7 +249,8 @@
                     ->mapWithKeys(fn ($definition, $index) => [
                         'PCT ' . ($index + 1) => $definition['label']
                             . ' — ' . $definition['limit_label']
-                            . ', calendar days, deadline day compliant',
+                            . ', ' . (app(\App\Services\PctCalendar::class)->countsWorkingDays() ? 'working days' : 'calendar days')
+                            . ', deadline day compliant',
                     ])
                 as $label => $rule
             )

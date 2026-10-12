@@ -150,8 +150,10 @@ on the case timeline.
 | 4 | SEADO Assignment - 1st Conference | Date Assigned to SEADO → 1st Conference | 10 days |
 | 5 | 1st Conference - Date Disposed | 1st Conference → Date Disposed | 30 days |
 
-Calendar days; the start day is day 0. Each checkpoint is rated against its
-own limit:
+Working days by default: Monday to Friday, skipping every date under
+**Schedule → Holidays & Events**. System Settings → *PCT Day Counting* can
+switch to calendar days. The start day is day 0. Each checkpoint is rated
+against its own limit:
 
 | Rating | 2- and 3-day rules | 10- and 30-day rules | Same-day rule |
 | --- | --- | --- | --- |

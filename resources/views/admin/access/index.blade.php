@@ -486,6 +486,28 @@
 
                                             <form
                                                 method="POST"
+                                                action="{{ route('admin.access.toggle-status', $user) }}"
+                                                onsubmit="return confirm('{{ $user->isActive() ? 'Disable this account? The user will be signed out and cannot sign in until it is enabled again.' : 'Enable this account? The user will be able to sign in again.' }}');"
+                                            >
+
+                                                @csrf
+                                                @method('PATCH')
+
+                                                <button
+                                                    type="submit"
+                                                    @class([
+                                                        'rounded-lg px-3 py-1 text-xs font-semibold transition',
+                                                        'bg-amber-50 text-amber-700 hover:bg-amber-100' => $user->isActive(),
+                                                        'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' => ! $user->isActive(),
+                                                    ])
+                                                >
+                                                    {{ $user->isActive() ? 'Disable' : 'Enable' }}
+                                                </button>
+
+                                            </form>
+
+                                            <form
+                                                method="POST"
                                                 action="{{ route('admin.access.destroy', $user) }}"
                                                 onsubmit="return confirm('Delete this user account? This cannot be undone.');"
                                             >

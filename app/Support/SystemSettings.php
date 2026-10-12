@@ -5,9 +5,9 @@ namespace App\Support;
 /**
  * The complete, closed list of settings an administrator may change.
  *
- * Business rules are deliberately absent: the PCT checkpoint limits
- * (App\Services\PctService) are policy, not configuration, and are not
- * editable from the interface.
+ * The PCT checkpoint limits (App\Services\PctService) are policy, not
+ * configuration, and are not editable from the interface. Only how days
+ * are counted against them (working or calendar days) is a setting.
  */
 final class SystemSettings
 {
@@ -22,6 +22,10 @@ final class SystemSettings
     public const AUDIT_RETENTION_DAYS = 'audit_retention_days';
 
     public const BACKUP_RETENTION_COUNT = 'backup_retention_count';
+
+    public const PCT_DAY_COUNTING = 'pct_day_counting';
+
+    public const SETTLED_DISPOSITION_MODES = 'settled_disposition_modes';
 
     /**
      * Definition of every setting: type, default, label, help text, and the
@@ -122,7 +126,57 @@ final class SystemSettings
 
                 'group' => 'Retention',
             ],
+
+            self::PCT_DAY_COUNTING => [
+                'label' => 'PCT Day Counting',
+
+                'help' => 'Working days skip Saturdays, Sundays and every date '
+                    . 'listed under Holidays & Events. Changing this re-rates '
+                    . 'every PCT checkpoint.',
+
+                'type' => 'string',
+
+                'default' => 'working',
+
+                'options' => [
+                    'working' => 'Working days (Mon–Fri, skipping holidays & events)',
+                    'calendar' => 'Calendar days (every day counts)',
+                ],
+
+                'rules' => ['required', 'in:working,calendar'],
+
+                'group' => 'PCT & Reports',
+            ],
+
+            self::SETTLED_DISPOSITION_MODES => [
+                'label' => 'Settled Disposition Codes',
+
+                'help' => 'Comma-separated source disposition codes (the CSV '
+                    . '"Mode") counted as settled in the SEADO Settlement '
+                    . 'Rate report, e.g. SC or SC, SWBF.',
+
+                'type' => 'string',
+
+                'default' => 'SC',
+
+                'rules' => ['required', 'string', 'max:255', 'regex:/^[A-Za-z0-9 ,_\-]+$/'],
+
+                'group' => 'PCT & Reports',
+            ],
         ];
+    }
+
+    /**
+     * The settled disposition codes as an upper-case list.
+     *
+     * @return array<int, string>
+     */
+    public static function parseCodes(string $value): array
+    {
+        return array_values(array_unique(array_filter(array_map(
+            fn (string $code) => strtoupper(trim($code)),
+            explode(',', $value)
+        ))));
     }
 
     /**
