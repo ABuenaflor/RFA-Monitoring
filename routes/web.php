@@ -14,6 +14,7 @@ use App\Http\Controllers\NotificationFeedController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\PctCycleTimeController;
 use App\Http\Controllers\PctProcessController;
+use App\Http\Controllers\IntakeReminderController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RfaCaseController;
 use App\Http\Controllers\RfaController;
@@ -243,6 +244,22 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | Missing intake dates reminder
+    |--------------------------------------------------------------------------
+    |
+    | Shown after sign-in until dismissed; dismissing lasts for the session.
+    |
+    */
+
+    Route::post(
+        '/intake-reminder/dismiss',
+        [IntakeReminderController::class, 'dismiss']
+    )
+        ->name('intake-reminder.dismiss');
+
+
+    /*
+    |--------------------------------------------------------------------------
     | Case Management
     |--------------------------------------------------------------------------
     |
@@ -282,6 +299,18 @@ Route::middleware('auth')->group(function () {
             )
                 ->middleware('can:rfa.manage')
                 ->name('workflow');
+
+            /*
+            | The case's SEADO may save these even without
+            | rfa.manage; the controller checks.
+            */
+
+            Route::put(
+                '/intake-dates',
+                [RfaCaseController::class, 'updateIntakeDates']
+            )
+                ->middleware('can:rfa.view')
+                ->name('intake-dates');
 
             Route::put(
                 '/conference',
@@ -407,12 +436,14 @@ Route::middleware('auth')->group(function () {
                     [UserController::class, 'toggleStatus']
                 )->name('toggle-status');
 
-                Route::delete(
-                    '/{user}',
-                    [UserController::class, 'destroy']
-                )->name('destroy');
-
             });
+
+            Route::delete(
+                '/{user}',
+                [UserController::class, 'destroy']
+            )
+                ->middleware('can:users.delete')
+                ->name('destroy');
 
         });
 

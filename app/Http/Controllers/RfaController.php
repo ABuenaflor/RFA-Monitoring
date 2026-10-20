@@ -126,6 +126,40 @@ class RfaController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | Office filter
+        |--------------------------------------------------------------------------
+        |
+        | Values are the office codes stored on the RFAs (config/offices.php);
+        | anything else is ignored.
+        |
+        */
+
+        $offices = config('offices.list', []);
+
+        $office = $request
+            ->string('office')
+            ->toString();
+
+        if (in_array($office, $offices, true)) {
+            $query->where('office', $office);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | SEADO filter
+        |--------------------------------------------------------------------------
+        */
+
+        $seado = $request
+            ->string('seado')
+            ->toString();
+
+        if ($seado !== '') {
+            $query->where('seado_name', $seado);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | Monitoring filter
         |--------------------------------------------------------------------------
         */
@@ -302,6 +336,13 @@ class RfaController extends Controller
             ->orderBy('disposition_status')
             ->pluck('disposition_status');
 
+        $seados = Rfa::query()
+            ->whereNotNull('seado_name')
+            ->where('seado_name', '!=', '')
+            ->distinct()
+            ->orderBy('seado_name')
+            ->pluck('seado_name');
+
         /*
         |--------------------------------------------------------------------------
         | Summary counts - unaffected by current filters
@@ -335,6 +376,8 @@ class RfaController extends Controller
             'statuses' => $statuses,
             'filingModes' => $filingModes,
             'dispositions' => $dispositions,
+            'offices' => $offices,
+            'seados' => $seados,
 
             'summary' => $summary,
 

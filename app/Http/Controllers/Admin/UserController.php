@@ -151,12 +151,10 @@ class UserController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         return view('admin.access.create', [
-            'roles' => Role::query()
-                ->orderBy('name')
-                ->get(),
+            'roles' => $this->assignableRoles($request->user()),
 
             'offices' => $this->officeOptions(),
         ]);
@@ -194,14 +192,14 @@ class UserController extends Controller
             );
     }
 
-    public function edit(User $user): View
+    public function edit(Request $request, User $user): View
     {
+        $this->guardAdministratorAccount($request, $user);
+
         return view('admin.access.edit', [
             'user' => $user->load('role'),
 
-            'roles' => Role::query()
-                ->orderBy('name')
-                ->get(),
+            'roles' => $this->assignableRoles($request->user()),
 
             'offices' => $this->officeOptions(),
         ]);
@@ -211,10 +209,30 @@ class UserController extends Controller
         Request $request,
         User $user
     ): RedirectResponse {
+        $this->guardAdministratorAccount($request, $user);
+
         $data = $this->validateUser($request, $user);
 
         $data['must_change_password'] =
             $request->boolean('must_change_password');
+
+        /*
+        | Only an administrator may change their own role; anyone else
+        | could otherwise move themselves to a role with more access.
+        */
+
+        if (
+            $user->id === $request->user()->id
+            && ! $request->user()->isAdministrator()
+            && (int) $data['role_id'] !== (int) $user->role_id
+        ) {
+            return redirect()
+                ->route('admin.access.edit', $user)
+                ->withErrors([
+                    'role_id' =>
+                        'You cannot change your own role. Ask an administrator.',
+                ]);
+        }
 
         /*
         |--------------------------------------------------------------------------
@@ -309,6 +327,8 @@ class UserController extends Controller
         Request $request,
         User $user
     ): RedirectResponse {
+        $this->guardAdministratorAccount($request, $user);
+
         if ($user->isActive()) {
             if ($user->id === $request->user()->id) {
                 return back()->withErrors([
@@ -396,7 +416,11 @@ class UserController extends Controller
             'role_id' =>
                 [
                     'required',
-                    Rule::exists('roles', 'id'),
+                    Rule::in(
+                        $this->assignableRoles($request->user())
+                            ->pluck('id')
+                            ->all()
+                    ),
                 ],
 
             'office' =>
@@ -410,6 +434,36 @@ class UserController extends Controller
         ], [
             'office.in' => 'Choose an office from the list.',
         ]);
+    }
+
+    /**
+     * Roles this user may give out. Only an administrator can create or
+     * promote an administrator, so managing users never becomes a way to
+     * gain full access.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Role>
+     */
+    private function assignableRoles(User $actor)
+    {
+        return Role::query()
+            ->when(
+                ! $actor->isAdministrator(),
+                fn (Builder $query) => $query->where('slug', '!=', Role::ADMINISTRATOR)
+            )
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * Administrator accounts can only be changed by an administrator.
+     */
+    private function guardAdministratorAccount(Request $request, User $user): void
+    {
+        abort_if(
+            $user->isAdministrator() && ! $request->user()->isAdministrator(),
+            403,
+            'Only an administrator can change an administrator account.'
+        );
     }
 
     private function isLastActiveAdministrator(User $user): bool

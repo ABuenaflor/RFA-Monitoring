@@ -419,6 +419,8 @@ class SeadoAssignmentController extends Controller
 
         $candidate->fill($attributes);
 
+        $this->workflow->applyOnsiteDates($candidate);
+
         $introduced = array_values(array_diff(
             $this->workflow->chronologyIssues($candidate),
             $this->workflow->chronologyIssues($rfa)

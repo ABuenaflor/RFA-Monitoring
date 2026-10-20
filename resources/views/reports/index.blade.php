@@ -1457,7 +1457,7 @@
                 the completion date is missing although the case
                 has already moved to a later stage;
                 the mode of filing is missing (PCT 1 only, so the
-                same-day / 2-day limit cannot be applied); or the
+                1-day / 2-day limit cannot be applied); or the
                 dates are invalid (completion earlier than start,
                 or a start date in the future).
             </div>
@@ -3141,7 +3141,7 @@
                                 uppercase
                                 text-slate-500"
                         >
-                            Date of Interview
+                            Date Interviewed
                         </th>
                         <th
                             class="px-4 py-3

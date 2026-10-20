@@ -466,7 +466,13 @@
 
                             <td class="px-4 py-4">
 
-                                @can('users.manage')
+                                @if ($user->isAdministrator() && ! auth()->user()->isAdministrator())
+
+                                    <span class="text-sm text-slate-400">
+                                        Managed by administrators
+                                    </span>
+
+                                @elsecan('users.manage')
 
                                     <div
                                         class="flex items-center gap-3
@@ -506,6 +512,8 @@
 
                                             </form>
 
+                                            @can('users.delete')
+
                                             <form
                                                 method="POST"
                                                 action="{{ route('admin.access.destroy', $user) }}"
@@ -526,6 +534,8 @@
 
                                             </form>
 
+                                            @endcan
+
                                         @endif
 
                                     </div>
@@ -536,7 +546,7 @@
                                         View only
                                     </span>
 
-                                @endcan
+                                @endif
 
                             </td>
 

@@ -11,7 +11,7 @@ use Carbon\Carbon;
  *
  * Five checkpoints, in the order a case moves through them:
  *
- *  1. Date Filed - Interviewer Assignment   on-site: same day, online: 2 days
+ *  1. Date Filed - Interviewer Assignment   on-site: 1 day, online: 2 days
  *  2. Interviewer Assignment - Date Interviewed          3 days
  *  3. Date Interviewed - SEADO Assignment                3 days
  *  4. SEADO Assignment - 1st Conference                 10 days
@@ -106,7 +106,7 @@ class PctService
                 'end_field' => 'date_assigned_interviewer',
                 'end_label' => 'Interviewer Assignment',
                 'limit_days' => null,
-                'limit_label' => 'On-site: same day · Online: 2 days',
+                'limit_label' => 'On-site: 1 day · Online: 2 days',
                 'passed_statuses' => self::statusesFrom(Workflow::FOR_VALIDATION),
             ],
 
@@ -206,7 +206,7 @@ class PctService
         }
 
         return match (self::normalizeMode($rfa->mode_of_filing)) {
-            self::MODE_ONSITE => 0,
+            self::MODE_ONSITE => 1,
             self::MODE_ONLINE => 2,
             default => null,
         };
@@ -319,7 +319,7 @@ class PctService
 
         if ($limit === null) {
             return $this->result($base, 'missing_mode', startDate: $startDate,
-                message: 'Mode of filing is missing, so the limit (same day'
+                message: 'Mode of filing is missing, so the limit (1 day'
                     . ' for on-site, 2 days for online) cannot be applied.');
         }
 

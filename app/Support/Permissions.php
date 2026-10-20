@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Models\Role;
+
 /**
  * Central catalogue of every permission the system understands.
  *
@@ -62,6 +64,8 @@ final class Permissions
     public const USERS_VIEW = 'users.view';
 
     public const USERS_MANAGE = 'users.manage';
+
+    public const USERS_DELETE = 'users.delete';
 
     public const ROLES_MANAGE = 'roles.manage';
 
@@ -183,6 +187,9 @@ final class Permissions
                     self::USERS_MANAGE =>
                         'Create, edit, and deactivate users',
 
+                    self::USERS_DELETE =>
+                        'Permanently delete user accounts',
+
                     self::ROLES_MANAGE =>
                         'Create and edit roles and permissions',
                 ],
@@ -277,22 +284,37 @@ final class Permissions
     }
 
     /**
-     * Permissions only the Administrator role may hold. They stay in the
-     * catalogue (so their gates exist) but cannot be granted to any other
-     * role.
+     * Permissions reserved for particular roles, keyed by permission, with
+     * the slugs of the roles (besides the Administrator, who holds every
+     * permission) that may be granted them. They stay in the catalogue so
+     * their gates exist, but no other role can hold them.
      *
-     * @return array<int, string>
+     * @return array<string, array<int, string>>
      */
-    public static function adminOnly(): array
+    public static function reserved(): array
     {
         return [
-            self::IMPORT_MANAGE,
+            self::IMPORT_MANAGE => [Role::SENA_FOCAL],
+
+            self::USERS_DELETE => [],
         ];
     }
 
-    public static function isAdminOnly(string $permission): bool
+    public static function isReserved(string $permission): bool
     {
-        return in_array($permission, self::adminOnly(), true);
+        return array_key_exists($permission, self::reserved());
+    }
+
+    /**
+     * Whether a role with this slug may hold the permission.
+     */
+    public static function grantableTo(string $permission, ?string $roleSlug): bool
+    {
+        if ($roleSlug === Role::ADMINISTRATOR || ! self::isReserved($permission)) {
+            return true;
+        }
+
+        return in_array($roleSlug, self::reserved()[$permission], true);
     }
 
     /**

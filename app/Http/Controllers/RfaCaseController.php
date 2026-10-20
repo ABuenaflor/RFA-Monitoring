@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\NotificationService;
 use App\Services\PctService;
 use App\Services\RfaWorkflowService;
+use App\Support\Permissions;
 use App\Support\Workflow;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -284,6 +285,9 @@ class RfaCaseController extends Controller
             'date_filed' =>
                 ['nullable', 'date'],
 
+            'date_ta_nores' =>
+                ['nullable', 'date'],
+
             'date_interview' =>
                 ['nullable', 'date'],
 
@@ -327,6 +331,59 @@ class RfaCaseController extends Controller
         return $this->back(
             $rfa,
             'Workflow progress saved.'
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Required Intake Dates
+    |--------------------------------------------------------------------------
+    |
+    | The office export has no Date Interviewed or Date TA/NORES, so the
+    | case's SEADO is asked for both when they open it. Saved from the
+    | pop-up form on the case page; anyone who can manage cases may save too.
+    |
+    */
+
+    public function updateIntakeDates(
+        Request $request,
+        Rfa $rfa
+    ): RedirectResponse {
+        $user = $request->user();
+
+        abort_unless(
+            $rfa->isHandledBySeado($user)
+                || $user->can(Permissions::RFA_MANAGE),
+            403
+        );
+
+        $data = $request->validate([
+            'date_interview' =>
+                ['required', 'date', 'before_or_equal:today'],
+
+            'date_ta_nores' =>
+                ['required', 'date', 'before_or_equal:today'],
+        ], [
+            'date_interview.required' => 'Enter the Date Interviewed.',
+            'date_ta_nores.required' => 'Enter the Date TA/NORES.',
+            'date_interview.before_or_equal' => 'The Date Interviewed cannot be in the future.',
+            'date_ta_nores.before_or_equal' => 'The Date TA/NORES cannot be in the future.',
+        ]);
+
+        $this->guardChronology($rfa, $data);
+
+        $this->workflow->apply(
+            $rfa,
+            $data,
+            $user,
+            'workflow',
+            'Date Interviewed and Date TA/NORES recorded'
+        );
+
+        return $this->back(
+            $rfa,
+            'Date Interviewed and Date TA/NORES saved.'
         );
     }
 
@@ -555,6 +612,8 @@ class RfaCaseController extends Controller
         $candidate = clone $rfa;
 
         $candidate->fill($attributes);
+
+        $this->workflow->applyOnsiteDates($candidate);
 
         $introduced = array_values(
             array_diff(

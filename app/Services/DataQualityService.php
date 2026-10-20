@@ -170,7 +170,7 @@ class DataQualityService
                 'label' => 'Interview Before Assignment',
 
                 'description' =>
-                    'Date of Interview falls before the interviewer '
+                    'Date Interviewed falls before the interviewer '
                     . 'assignment date.',
 
                 'impact' =>

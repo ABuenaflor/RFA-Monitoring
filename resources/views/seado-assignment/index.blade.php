@@ -84,27 +84,30 @@
 
 
     {{-- ========================================================= --}}
-    {{-- SEADO ROULETTE --}}
+    {{-- RANDOM SEADO DRAW --}}
     {{-- ========================================================= --}}
 
     <section
-        id="seado-roulette"
-        x-data="seadoRoulette(@js($roulette))"
+        id="seado-draw"
+        x-data="seadoDraw(@js($roulette), @js([
+            'drawnBy' => auth()->user()?->name,
+            'pool' => $officeLabel ?? 'All offices',
+        ]))"
         class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
 
         <div class="flex flex-col justify-between gap-2 lg:flex-row lg:items-end">
 
             <div>
-                <p class="text-xs font-bold uppercase tracking-[0.15em] text-blue-600">SEADO Roulette</p>
+                <p class="text-xs font-bold uppercase tracking-[0.15em] text-blue-600">Random SEADO Draw</p>
 
                 <h2 class="mt-1 text-lg font-bold text-slate-950">
-                    Draw one of the {{ $roulette->count() }} least-handled SEADOs
+                    Select one of the {{ $roulette->count() }} least-handled SEADOs
                 </h2>
 
                 <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-                    Shuffles the {{ $roulette->count() }} SEADOs with the fewest RFAs handled
-                    in {{ $officeLabel ?? 'all offices' }} and spins the wheel to pick one at random.
+                    Picks one SEADO at random, with equal odds, from the {{ $roulette->count() }}
+                    with the fewest RFAs handled in {{ $officeLabel ?? 'all offices' }}.
                     SEADOs on the exclusion list are skipped and the next least-handled
                     take their place. The draw is not saved — assign the case from the list below.
                 </p>
@@ -125,62 +128,37 @@
 
         @else
 
-            <div class="mt-6 grid grid-cols-1 items-center gap-8 lg:grid-cols-[auto_1fr]">
+            <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_24rem]">
 
-                {{-- Wheel --}}
-
-                <div class="relative mx-auto h-72 w-72 sm:h-80 sm:w-80">
-
-                    {{-- Pointer --}}
-                    <div class="absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1">
-                        <div class="h-0 w-0 border-x-[14px] border-t-[24px] border-x-transparent border-t-slate-950 drop-shadow"></div>
-                    </div>
-
-                    <div
-                        x-ref="wheel"
-                        @transitionend.self="finish()"
-                        class="relative h-full w-full overflow-hidden rounded-full border-8 border-slate-950 shadow-xl"
-                        :style="`background: ${gradient()}; transform: rotate(${rotation}deg); transition: ${transition};`"
-                        role="img"
-                        :aria-label="`Roulette wheel with ${segments.length} SEADOs`"
-                    >
-
-                        <template x-for="(seado, index) in segments" :key="seado.name">
-                            <div
-                                class="absolute left-1/2 top-1/2 flex h-8 w-1/2 origin-left items-center justify-end pr-5"
-                                :style="`transform: translateY(-50%) rotate(${labelAngle(index)}deg)`"
-                            >
-                                <span
-                                    class="max-w-[7.5rem] truncate text-xs font-bold text-white drop-shadow sm:max-w-[8.5rem]"
-                                    x-text="shortName(seado.name)"
-                                ></span>
-                            </div>
-                        </template>
-
-                    </div>
-
-                    {{-- Hub --}}
-                    <div class="absolute left-1/2 top-1/2 z-10 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-4 border-slate-950 bg-white text-xs font-bold text-slate-950 shadow">
-                        <span x-text="phase === 'idle' ? 'SPIN' : '…'">SPIN</span>
-                    </div>
-
-                </div>
-
-
-                {{-- Candidates + button --}}
+                {{-- Eligible pool --}}
 
                 <div>
 
+                    <div class="mb-2 flex items-baseline justify-between gap-2">
+                        <p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+                            Eligible pool · <span x-text="candidates.length"></span> SEADOs
+                        </p>
+                        <p class="text-xs text-slate-400">Equal chance each</p>
+                    </div>
+
                     <ol class="space-y-2">
 
-                        <template x-for="(seado, index) in segments" :key="seado.name">
+                        <template x-for="(seado, index) in candidates" :key="seado.name">
                             <li
-                                class="flex items-center gap-3 rounded-xl border p-3 transition"
+                                class="flex items-center gap-3 rounded-xl border p-3 transition-colors duration-100"
                                 :class="highlight === seado.name
-                                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                                    ? (phase === 'idle'
+                                        ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200'
+                                        : 'border-blue-500 bg-blue-50')
                                     : 'border-slate-200'"
                             >
-                                <span class="h-4 w-4 shrink-0 rounded-full" :style="`background: ${color(index)}`"></span>
+                                <span
+                                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                                    :class="highlight === seado.name && phase === 'idle'
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'bg-slate-100 text-slate-500'"
+                                    x-text="index + 1"
+                                ></span>
 
                                 <span class="min-w-0 flex-1">
                                     <span class="block truncate text-sm font-semibold text-slate-900" x-text="seado.name"></span>
@@ -198,97 +176,106 @@
 
                     <button
                         type="button"
-                        @click="spin()"
+                        @click="draw()"
                         :disabled="phase !== 'idle'"
                         class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
                     >
-                        <span x-show="phase === 'idle'">Shuffle &amp; Spin</span>
-                        <span x-cloak x-show="phase === 'shuffling'">Shuffling…</span>
-                        <span x-cloak x-show="phase === 'spinning'">Spinning…</span>
+                        <span x-show="phase === 'idle'" x-text="record ? 'Run New Draw' : 'Run Random Draw'">Run Random Draw</span>
+                        <span x-cloak x-show="phase === 'drawing'">Drawing…</span>
                     </button>
 
-                    <p class="sr-only" aria-live="polite" x-text="winner ? `Chosen SEADO: ${winner.name}` : ''"></p>
+                    <p class="sr-only" aria-live="polite" x-text="record ? `Selected SEADO: ${record.seado.name}` : ''"></p>
 
                 </div>
 
-            </div>
 
+                {{-- Draw record --}}
 
-            {{-- Result pop-up --}}
-
-            <template x-teleport="body">
-
-                <div
-                    x-cloak
-                    x-show="winner && showResult"
-                    x-transition.opacity
-                    @keydown.escape.window="showResult = false"
-                    class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-                >
+                <div>
 
                     <div
-                        @click.outside="showResult = false"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="roulette-result-title"
-                        x-show="showResult"
-                        x-transition.scale.90
-                        class="w-full max-w-md rounded-2xl bg-white p-6 text-center shadow-2xl"
+                        x-show="! record"
+                        class="flex h-full min-h-[14rem] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center"
+                    >
+                        <p class="text-sm font-semibold text-slate-600">No draw yet</p>
+                        <p class="mt-1 text-xs leading-5 text-slate-400">
+                            Run the draw to select a SEADO. The result shows a reference
+                            number you can note on the case.
+                        </p>
+                    </div>
+
+                    <div
+                        x-cloak
+                        x-show="record"
+                        x-transition.opacity
+                        class="overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-sm"
                     >
 
-                        <p class="text-xs font-bold uppercase tracking-[0.15em] text-blue-600">Chosen SEADO</p>
+                        <div class="flex items-center justify-between gap-2 border-b border-emerald-100 bg-emerald-50 px-5 py-3">
+                            <p class="text-xs font-bold uppercase tracking-[0.12em] text-emerald-700">Selected SEADO</p>
+                            <p class="font-mono text-xs font-semibold text-emerald-800" x-text="record?.reference"></p>
+                        </div>
 
-                        <div
-                            class="mx-auto mt-4 flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold text-white shadow-lg"
-                            :style="`background: ${winner ? color(segments.findIndex(s => s.name === winner.name)) : '#2563eb'}`"
-                            x-text="winner ? initials(winner.name) : ''"
-                        ></div>
+                        <div class="p-5">
 
-                        <h3 id="roulette-result-title" class="mt-4 text-xl font-bold text-slate-950" x-text="winner?.name"></h3>
+                            <h3 class="text-xl font-bold text-slate-950" x-text="record?.seado.name"></h3>
 
-                        <p class="mt-1 text-sm text-slate-500" x-text="winner?.offices?.join(', ') || 'No office on record'"></p>
+                            <p class="mt-1 text-sm text-slate-500" x-text="record?.seado.offices?.join(', ') || 'No office on record'"></p>
 
-                        <dl class="mt-5 grid grid-cols-3 gap-3">
-                            <div class="rounded-xl bg-slate-50 p-3">
-                                <dt class="text-[10px] font-semibold uppercase text-slate-400">Handled</dt>
-                                <dd class="mt-1 text-xl font-bold text-slate-950" x-text="winner?.total"></dd>
-                            </div>
-                            <div class="rounded-xl bg-slate-50 p-3">
-                                <dt class="text-[10px] font-semibold uppercase text-slate-400">Open</dt>
-                                <dd class="mt-1 text-xl font-bold text-slate-950" x-text="winner?.open"></dd>
-                            </div>
-                            <div class="rounded-xl bg-slate-50 p-3">
-                                <dt class="text-[10px] font-semibold uppercase text-slate-400">Disposed</dt>
-                                <dd class="mt-1 text-xl font-bold text-slate-950" x-text="winner?.disposed"></dd>
-                            </div>
-                        </dl>
+                            <dl class="mt-4 grid grid-cols-3 gap-3">
+                                <div class="rounded-lg bg-slate-50 p-2.5 text-center">
+                                    <dt class="text-[10px] font-semibold uppercase text-slate-400">Handled</dt>
+                                    <dd class="mt-0.5 text-lg font-bold text-slate-950" x-text="record?.seado.total"></dd>
+                                </div>
+                                <div class="rounded-lg bg-slate-50 p-2.5 text-center">
+                                    <dt class="text-[10px] font-semibold uppercase text-slate-400">Open</dt>
+                                    <dd class="mt-0.5 text-lg font-bold text-slate-950" x-text="record?.seado.open"></dd>
+                                </div>
+                                <div class="rounded-lg bg-slate-50 p-2.5 text-center">
+                                    <dt class="text-[10px] font-semibold uppercase text-slate-400">Disposed</dt>
+                                    <dd class="mt-0.5 text-lg font-bold text-slate-950" x-text="record?.seado.disposed"></dd>
+                                </div>
+                            </dl>
 
-                        <p x-show="winner && ! winner.has_account" class="mt-4 text-xs text-amber-700">
-                            No system account yet, so this SEADO will not get in-app alerts.
-                        </p>
+                            <dl class="mt-4 space-y-1.5 border-t border-slate-100 pt-4 text-xs">
+                                <div class="flex justify-between gap-3">
+                                    <dt class="text-slate-400">Drawn</dt>
+                                    <dd class="text-right font-semibold text-slate-700" x-text="record?.drawnAt"></dd>
+                                </div>
+                                <div class="flex justify-between gap-3" x-show="record?.drawnBy">
+                                    <dt class="text-slate-400">Drawn by</dt>
+                                    <dd class="text-right font-semibold text-slate-700" x-text="record?.drawnBy"></dd>
+                                </div>
+                                <div class="flex justify-between gap-3">
+                                    <dt class="text-slate-400">Pool</dt>
+                                    <dd class="text-right font-semibold text-slate-700" x-text="record ? `${record.poolSize} SEADOs · ${record.pool}` : ''"></dd>
+                                </div>
+                                <div class="flex justify-between gap-3">
+                                    <dt class="text-slate-400">Method</dt>
+                                    <dd class="text-right font-semibold text-slate-700">Secure random, equal odds</dd>
+                                </div>
+                            </dl>
 
-                        <div class="mt-6 flex justify-center gap-2">
+                            <p x-show="record && ! record.seado.has_account" class="mt-4 text-xs text-amber-700">
+                                No system account yet, so this SEADO will not get in-app alerts.
+                            </p>
+
                             <button
                                 type="button"
-                                @click="showResult = false; $nextTick(() => spin())"
-                                class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                @click="copyRecord()"
+                                class="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                                x-text="copied ? 'Copied' : 'Copy draw record'"
                             >
-                                Spin Again
+                                Copy draw record
                             </button>
-                            <button
-                                type="button"
-                                @click="showResult = false"
-                                class="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-                            >
-                                Done
-                            </button>
+
                         </div>
 
                     </div>
 
                 </div>
 
-            </template>
+            </div>
 
         @endif
 
@@ -300,7 +287,7 @@
             <div class="flex flex-col justify-between gap-1 sm:flex-row sm:items-end">
                 <div>
                     <h3 class="text-sm font-bold text-slate-950">
-                        Excluded from the roulette
+                        Excluded from the draw
                         <span class="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">{{ $exclusions->count() }}</span>
                     </h3>
                     <p class="mt-1 text-xs text-slate-500">
@@ -338,7 +325,7 @@
 
                                 <button
                                     type="submit"
-                                    title="Put {{ $exclusion->seado_name }} back in the roulette (excluded {{ $exclusion->created_at?->format('M d, Y') }}{{ $exclusion->excluder ? ' by ' . $exclusion->excluder->name : '' }})"
+                                    title="Put {{ $exclusion->seado_name }} back in the draw pool (excluded {{ $exclusion->created_at?->format('M d, Y') }}{{ $exclusion->excluder ? ' by ' . $exclusion->excluder->name : '' }})"
                                     aria-label="Remove {{ $exclusion->seado_name }} from the exclusion list"
                                     class="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
                                 >

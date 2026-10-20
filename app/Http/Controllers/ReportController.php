@@ -1200,7 +1200,7 @@ public function print(
 
                         'Interviewer',
                         'Date Assigned to Interviewer',
-                        'Date of Interview',
+                        'Date Interviewed',
 
                         'SEADO',
                         'Date Assigned to SEADO',

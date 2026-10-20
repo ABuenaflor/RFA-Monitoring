@@ -7,7 +7,7 @@ use App\Support\Permissions;
 use Illuminate\Database\Seeder;
 
 /**
- * Creates the four system roles.
+ * Creates the five system roles.
  *
  * Safe to re-run: existing roles keep whatever permission set an
  * administrator has since configured for them.
@@ -68,6 +68,31 @@ class RolePermissionSeeder extends Seeder
                 */
 
                 'permissions' => [],
+            ],
+
+            [
+                'name' => 'SENA Focal',
+
+                'slug' => Role::SENA_FOCAL,
+
+                'description' =>
+                    'Everything a SEADO can do, plus CSV import, user accounts, and holidays & events.',
+
+                'permissions' => [
+                    Permissions::DASHBOARD_VIEW,
+                    Permissions::RFA_VIEW,
+                    Permissions::PCT_VIEW,
+                    Permissions::RFA_MANAGE,
+                    Permissions::RFA_ASSIGN,
+                    Permissions::RFA_DISPOSE,
+                    Permissions::REPORTS_VIEW,
+                    Permissions::REPORTS_EXPORT,
+                    Permissions::NOTIFICATIONS_VIEW,
+                    Permissions::IMPORT_MANAGE,
+                    Permissions::USERS_VIEW,
+                    Permissions::USERS_MANAGE,
+                    Permissions::HOLIDAYS_MANAGE,
+                ],
             ],
 
             [

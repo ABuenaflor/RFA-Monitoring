@@ -247,7 +247,7 @@ The service tracks **five checkpoints** per case, in workflow order
 
 | # | Checkpoint (`key`) | Start → End | Limit |
 |---|---|---|---|
-| 1 | Date Filed - Interviewer Assignment (`filing_assignment`) | `date_filed` → `date_assigned_interviewer` | On-site: same day (0) · Online: 2 days, from `mode_of_filing` |
+| 1 | Date Filed - Interviewer Assignment (`filing_assignment`) | `date_filed` → `date_assigned_interviewer` | On-site: 1 day · Online: 2 days, from `mode_of_filing` |
 | 2 | Interviewer Assignment - Date Interviewed (`assignment_interview`) | `date_assigned_interviewer` → `date_interview` | 3 days |
 | 3 | Date Interviewed - SEADO Assignment (`interview_seado`) | `date_interview` → `date_assigned_seado` | 3 days |
 | 4 | SEADO Assignment - 1st Conference (`seado_conference`) | `date_assigned_seado` → `date_initial_conference` | 10 days |
@@ -261,8 +261,8 @@ limit (`PctService::classify()`):
 - **Beyond PCT** — past the limit.
 - **On PCT** — the deadline day itself; still compliant.
 - **Nearing PCT** — the day before the deadline, or the last 3 days before
-  it for limits of 10+ days (days 7–9 of 10, 27–29 of 30). The same-day
-  rule has no nearing day: day 0 is On PCT, day 1 is Beyond.
+  it for limits of 10+ days (days 7–9 of 10, 27–29 of 30). For the 1-day
+  on-site rule, day 0 is Nearing, day 1 is On PCT and day 2 is Beyond.
 - **Within PCT** — anything earlier.
 
 `mode_of_filing` is normalised (`onsite`/`on-site`/`walk-in` → on-site,
@@ -647,7 +647,7 @@ system.
    row and one audit-log summary entry are written for the whole batch.
    From this moment, **PCT 1 (Date Filed - Interviewer Assignment) is
    running** (`date_filed` is set, `date_assigned_interviewer` is not) — the
-   same day for an on-site filing, 2 days for an online one.
+   1 day for an on-site filing, 2 days for an online one.
 
 2. **Interviewer assignment.** A supervisor opens the case (`rfa.view`) and,
    under **Assignment** (`rfa.assign`), links it to an interviewer's system
