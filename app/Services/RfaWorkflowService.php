@@ -32,6 +32,8 @@ class RfaWorkflowService
     ): ?RfaActivity {
         $rfa->fill($attributes);
 
+        $this->applyOnsiteDates($rfa);
+
         /*
         |--------------------------------------------------------------------------
         | Monitoring bucket is always derived, never typed
@@ -96,6 +98,51 @@ class RfaWorkflowService
     | Derivation
     |--------------------------------------------------------------------------
     */
+
+    /**
+     * The filing date of an on-site case, or null for any other case.
+     *
+     * An on-site complainant is assigned an interviewer and interviewed on
+     * the day they file, so for these cases the Date Assigned to Interviewer
+     * always equals the Date Filed and a missing Date Interviewed takes it
+     * too. Online filings are left alone.
+     *
+     * Dates are Y-m-d strings.
+     */
+    public static function onsiteFilingDate(
+        ?string $modeOfFiling,
+        ?string $dateFiled
+    ): ?string {
+        if (
+            $dateFiled === null
+            || PctService::normalizeMode($modeOfFiling) !== PctService::MODE_ONSITE
+        ) {
+            return null;
+        }
+
+        return $dateFiled;
+    }
+
+    /**
+     * Bring an on-site case's interviewer dates in line with its Date Filed
+     * (see onsiteFilingDate()). Called on every save, so changing the Date
+     * Filed or the mode of filing moves them along.
+     */
+    public function applyOnsiteDates(Rfa $rfa): void
+    {
+        $filed = self::onsiteFilingDate(
+            $rfa->mode_of_filing,
+            $rfa->date_filed?->toDateString()
+        );
+
+        if ($filed === null) {
+            return;
+        }
+
+        $rfa->date_assigned_interviewer = $filed;
+
+        $rfa->date_interview ??= $filed;
+    }
 
     /**
      * The workflow status the record's dates imply.
@@ -314,6 +361,7 @@ class RfaWorkflowService
         return match ($field) {
             'status' => 'Workflow Status',
             'monitoring_bucket' => 'Monitoring Bucket',
+            'date_ta_nores' => 'Date TA/NORES',
             'interviewer_name' => 'Interviewer',
             'interviewer_id' => 'Interviewer Account',
             'seado_name' => 'SEADO',

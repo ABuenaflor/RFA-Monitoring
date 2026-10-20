@@ -11,6 +11,8 @@ class Role extends Model
 {
     public const ADMINISTRATOR = 'administrator';
 
+    public const SENA_FOCAL = 'sena-focal';
+
     protected $fillable = [
         'name',
         'slug',
@@ -66,7 +68,7 @@ class Role extends Model
         | Refused even if an older role still has the key stored.
         */
 
-        if (Permissions::isAdminOnly($permission)) {
+        if (! Permissions::grantableTo($permission, $this->slug)) {
             return false;
         }
 
@@ -80,17 +82,17 @@ class Role extends Model
     /**
      * Replace the role's permission set with the supplied keys.
      *
-     * Administrator-only keys are dropped (the administrator role holds
-     * them implicitly), which also clears any left over from before they
-     * were restricted.
+     * Keys reserved for other roles are dropped (the administrator role
+     * holds them implicitly), which also clears any left over from before
+     * they were restricted.
      *
      * @param  array<int, string>  $permissions
      */
     public function syncPermissions(array $permissions): void
     {
-        $permissions = array_values(array_diff(
+        $permissions = array_values(array_filter(
             Permissions::onlyKnown($permissions),
-            Permissions::adminOnly()
+            fn (string $permission) => Permissions::grantableTo($permission, $this->slug)
         ));
 
         $this->permissions()

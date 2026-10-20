@@ -457,20 +457,48 @@
                     </div>
 
 
+                    @php
+                        $onsiteFiled = \App\Services\RfaWorkflowService::onsiteFilingDate(
+                            $rfa->mode_of_filing,
+                            $rfa->date_filed?->toDateString()
+                        );
+                    @endphp
+
                     <div>
 
                         <label for="date_assigned_interviewer" class="{{ $labelClass }}">
                             Date Assigned to Interviewer
                         </label>
 
-                        <input
-                            id="date_assigned_interviewer"
-                            name="date_assigned_interviewer"
-                            type="date"
-                            value="{{ old('date_assigned_interviewer', $dateValue($rfa->date_assigned_interviewer)) }}"
-                            class="{{ $inputClass }}"
-                            @disabled(! $canAssign)
-                        >
+                        @if ($onsiteFiled !== null)
+
+                            {{-- On-site: always the Date Filed, set by the system --}}
+
+                            <input
+                                id="date_assigned_interviewer"
+                                type="date"
+                                value="{{ $onsiteFiled }}"
+                                readonly
+                                aria-describedby="date_assigned_interviewer_hint"
+                                class="{{ $inputClass }} bg-slate-50 text-slate-500"
+                            >
+
+                            <p id="date_assigned_interviewer_hint" class="mt-1 text-xs text-slate-500">
+                                On-site filing: always the same as the Date Filed.
+                            </p>
+
+                        @else
+
+                            <input
+                                id="date_assigned_interviewer"
+                                name="date_assigned_interviewer"
+                                type="date"
+                                value="{{ old('date_assigned_interviewer', $dateValue($rfa->date_assigned_interviewer)) }}"
+                                class="{{ $inputClass }}"
+                                @disabled(! $canAssign)
+                            >
+
+                        @endif
 
                     </div>
 
@@ -678,7 +706,8 @@
 
                 @foreach ([
                     'date_filed' => 'Date Filed',
-                    'date_interview' => 'Date of Interview',
+                    'date_ta_nores' => 'Date TA/NORES',
+                    'date_interview' => 'Date Interviewed',
                     'date_validated' => 'Date Validated',
                     'date_turned_over_lr' => 'Date Turned Over to LR',
                 ] as $field => $label)
@@ -755,7 +784,7 @@
             class="mt-2 text-sm leading-6
                    text-slate-500"
         >
-            The 1st Conference is not the Date of Interview and is never treated
+            The 1st Conference is not the Date Interviewed and is never treated
             as one. A 2nd Conference cannot be recorded before a 1st.
         </p>
 
@@ -1574,5 +1603,163 @@
     </section>
 
 </div>
+
+
+{{-- ========================================================= --}}
+{{-- REQUIRED INTAKE DATES --}}
+{{-- ========================================================= --}}
+{{--
+| The office export has no Date Interviewed or Date TA/NORES. The case's
+| SEADO must enter both before working on an open case: the form
+| cannot be closed, and leaving or going back is held until it is saved.
+--}}
+
+@if ($rfa->needsIntakeDates() && $rfa->isHandledBySeado(auth()->user()))
+
+    <div
+        x-data="{
+            saving: false,
+
+            init() {
+                this.warnOnLeave = (event) => {
+                    if (this.saving) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    event.returnValue = '';
+                };
+
+                this.holdOnBack = () => {
+                    if (! this.saving) {
+                        history.pushState(null, '', location.href);
+                    }
+                };
+
+                window.addEventListener('beforeunload', this.warnOnLeave);
+
+                history.pushState(null, '', location.href);
+                window.addEventListener('popstate', this.holdOnBack);
+
+                this.$nextTick(() => this.$refs.first?.focus());
+            },
+        }"
+        class="fixed inset-0 z-[70] flex items-center justify-center
+               overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm"
+    >
+
+        <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="intake-dates-title"
+            class="w-full max-w-lg rounded-2xl bg-white shadow-2xl"
+        >
+
+            <div class="border-b border-slate-100 px-6 py-5">
+
+                <p class="text-xs font-bold uppercase tracking-[0.15em] text-amber-600">
+                    Required before you continue
+                </p>
+
+                <h2 id="intake-dates-title" class="mt-1 text-lg font-bold text-slate-950">
+                    Enter the missing case dates
+                </h2>
+
+                <p class="mt-1 text-sm leading-6 text-slate-500">
+                    The imported record has no Date Interviewed or Date TA/NORES.
+                    Both are required to keep PCT monitoring accurate.
+                </p>
+
+            </div>
+
+            <dl class="grid grid-cols-2 gap-x-4 gap-y-3 bg-slate-50 px-6 py-4 text-sm">
+                <div class="col-span-2 sm:col-span-1">
+                    <dt class="text-xs text-slate-400">Complainant</dt>
+                    <dd class="font-semibold text-slate-900">{{ $rfa->requesting_party ?: '—' }}</dd>
+                </div>
+                <div class="col-span-2 sm:col-span-1">
+                    <dt class="text-xs text-slate-400">Company</dt>
+                    <dd class="font-semibold text-slate-900">{{ $rfa->responding_party ?: '—' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-slate-400">Docket No.</dt>
+                    <dd class="font-mono text-xs font-semibold text-slate-900">{{ $rfa->docket_no ?: $rfa->reference_no }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-slate-400">Date Filed</dt>
+                    <dd class="font-semibold text-slate-900">{{ $rfa->date_filed?->format('M d, Y') ?? '—' }}</dd>
+                </div>
+            </dl>
+
+            <form
+                method="POST"
+                action="{{ route('rfas.intake-dates', $rfa) }}"
+                @submit="saving = true"
+                class="space-y-4 px-6 py-5"
+            >
+
+                @csrf
+                @method('PUT')
+
+                @if ($errors->has('chronology'))
+                    <div class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+                        @foreach ($errors->get('chronology') as $message)
+                            <p>{{ $message }}</p>
+                        @endforeach
+                    </div>
+                @endif
+
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+                    @foreach ([
+                        'date_interview' => 'Date Interviewed',
+                        'date_ta_nores' => 'Date TA/NORES',
+                    ] as $field => $label)
+
+                        <div>
+                            <label for="intake_{{ $field }}" class="{{ $labelClass }}">
+                                {{ $label }} <span class="text-red-600" aria-hidden="true">*</span>
+                            </label>
+
+                            <input
+                                id="intake_{{ $field }}"
+                                name="{{ $field }}"
+                                type="date"
+                                required
+                                max="{{ now()->toDateString() }}"
+                                value="{{ old($field, $dateValue($rfa->{$field})) }}"
+                                @if ($loop->first) x-ref="first" @endif
+                                @error($field) aria-invalid="true" aria-describedby="intake_{{ $field }}_error" @enderror
+                                class="{{ $inputClass }} @error($field) border-red-400 @enderror"
+                            >
+
+                            @error($field)
+                                <p id="intake_{{ $field }}_error" class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                    @endforeach
+
+                </div>
+
+                <button
+                    type="submit"
+                    :disabled="saving"
+                    class="w-full rounded-xl bg-blue-600 px-5 py-3
+                           text-sm font-semibold text-white shadow-sm
+                           transition hover:bg-blue-700
+                           disabled:cursor-wait disabled:opacity-60"
+                >
+                    <span x-show="! saving">Save Dates</span>
+                    <span x-cloak x-show="saving">Saving…</span>
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+@endif
 
 @endsection

@@ -8,28 +8,23 @@ window.Chart = Chart;
 
 Alpine.data('notificationBell', notificationBell);
 
-Alpine.data('seadoRoulette', seadoRoulette);
+Alpine.data('seadoDraw', seadoDraw);
 
 Alpine.start();
 
 /**
- * SEADO Assignment roulette: shuffles the least-handled SEADOs onto a
- * wheel, spins it, and shows the one that lands under the pointer. The
- * winner is chosen with crypto randomness before the spin starts; the
- * animation only lands on it.
+ * SEADO Assignment random draw: picks one of the least-handled SEADOs with
+ * equal odds and shows a draw record (reference, time, who drew it). The
+ * winner is chosen with crypto randomness before the animation starts;
+ * the highlight only steps down the list and settles on it.
  */
-function seadoRoulette(seados) {
-    const PALETTE = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#e11d48'];
-
+function seadoDraw(seados, { drawnBy = null, pool = '' } = {}) {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    const SHUFFLE_TICKS = reduceMotion ? 1 : 10;
-
-    const SHUFFLE_MS = 90;
-
-    const SPIN_MS = reduceMotion ? 600 : 4800;
-
-    const FULL_TURNS = reduceMotion ? 1 : 6;
+    // Delay before each highlight step: quick at first, slowing to a stop.
+    const STEP_DELAYS = reduceMotion
+        ? []
+        : [60, 60, 60, 60, 70, 70, 80, 90, 100, 120, 140, 170, 210, 260, 320];
 
     const randomInt = (max) => {
         const value = new Uint32Array(1);
@@ -39,143 +34,101 @@ function seadoRoulette(seados) {
         return value[0] % max;
     };
 
-    const shuffled = (list) => {
-        const copy = [...list];
+    const randomHex = (length) => {
+        const bytes = new Uint8Array(Math.ceil(length / 2));
 
-        for (let i = copy.length - 1; i > 0; i--) {
-            const j = randomInt(i + 1);
+        crypto.getRandomValues(bytes);
 
-            [copy[i], copy[j]] = [copy[j], copy[i]];
-        }
-
-        return copy;
+        return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('').slice(0, length).toUpperCase();
     };
 
+    const pad = (number) => String(number).padStart(2, '0');
+
     return {
-        segments: [...seados],
-        rotation: 0,
-        transition: 'none',
+        candidates: [...seados],
         phase: 'idle',
-        winner: null,
-        winnerIndex: null,
         highlight: null,
-        showResult: false,
-        fallbackTimer: null,
+        record: null,
+        copied: false,
 
-        slice() {
-            return 360 / Math.max(this.segments.length, 1);
-        },
-
-        color(index) {
-            return PALETTE[index % PALETTE.length];
-        },
-
-        gradient() {
-            const slice = this.slice();
-
-            const stops = this.segments.map(
-                (seado, index) => `${this.color(index)} ${index * slice}deg ${(index + 1) * slice}deg`
-            );
-
-            return `conic-gradient(from 0deg, ${stops.join(', ')})`;
-        },
-
-        // Labels run from the hub outward along the middle of each slice.
-        labelAngle(index) {
-            return index * this.slice() + this.slice() / 2 - 90;
-        },
-
-        shortName(name) {
-            const words = name.split(/\s+/).filter((word) => word.replace(/\./g, '') !== '');
-
-            return words.length <= 2 ? words.join(' ') : `${words[0]} ${words[words.length - 1]}`;
-        },
-
-        initials(name) {
-            const words = name.split(/\s+/).filter((word) => /[a-z]/i.test(word));
-
-            return ((words[0]?.[0] ?? '') + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase();
-        },
-
-        spin() {
-            if (this.phase !== 'idle' || this.segments.length === 0) {
+        draw() {
+            if (this.phase !== 'idle' || this.candidates.length === 0) {
                 return;
             }
 
-            this.winner = null;
-            this.showResult = false;
-            this.phase = 'shuffling';
+            const count = this.candidates.length;
 
-            // Keep the wheel still while the names are shuffled.
-            this.transition = 'none';
+            const winnerIndex = randomInt(count);
 
-            let ticks = 0;
+            this.phase = 'drawing';
+            this.record = null;
+            this.copied = false;
 
-            const shuffle = setInterval(() => {
-                this.segments = shuffled(this.segments);
-                this.highlight = this.segments[randomInt(this.segments.length)].name;
+            // Walk the highlight down the list so it lands on the winner on the last step.
+            const steps = STEP_DELAYS.length;
 
-                if (++ticks >= SHUFFLE_TICKS) {
-                    clearInterval(shuffle);
-                    this.$nextTick(() => requestAnimationFrame(() => this.startSpin()));
+            let position = (((winnerIndex - steps) % count) + count) % count;
+
+            const step = (index) => {
+                if (index >= steps) {
+                    this.finish(winnerIndex);
+
+                    return;
                 }
-            }, SHUFFLE_MS);
+
+                position = (position + 1) % count;
+                this.highlight = this.candidates[position].name;
+
+                setTimeout(() => step(index + 1), STEP_DELAYS[index]);
+            };
+
+            step(0);
         },
 
-        startSpin() {
-            const slice = this.slice();
+        finish(winnerIndex) {
+            const now = new Date();
 
-            this.winnerIndex = randomInt(this.segments.length);
+            const seado = this.candidates[winnerIndex];
 
-            // Land somewhere inside the winning slice, not always dead centre.
-            const target = this.winnerIndex * slice + slice / 2 + (Math.random() - 0.5) * slice * 0.6;
-
-            const current = ((this.rotation % 360) + 360) % 360;
-
-            const delta = (((360 - target - current) % 360) + 360) % 360;
-
-            this.phase = 'spinning';
-            this.transition = `transform ${SPIN_MS}ms cubic-bezier(0.12, 0.8, 0.1, 1)`;
-            this.rotation += FULL_TURNS * 360 + delta;
-
-            this.trackPointer();
-
-            // transitionend can be skipped (hidden tab); finish regardless.
-            this.fallbackTimer = setTimeout(() => this.finish(), SPIN_MS + 400);
-        },
-
-        // Light up whichever SEADO is passing under the pointer.
-        trackPointer() {
-            if (this.phase !== 'spinning') {
-                return;
-            }
-
-            const matrix = getComputedStyle(this.$refs.wheel).transform;
-
-            if (matrix && matrix !== 'none') {
-                const [a, b] = matrix.match(/matrix\(([^)]+)\)/)[1].split(',').map(Number);
-
-                const angle = ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360;
-
-                const underPointer = Math.floor(((360 - angle) % 360) / this.slice());
-
-                this.highlight = this.segments[underPointer % this.segments.length]?.name ?? null;
-            }
-
-            requestAnimationFrame(() => this.trackPointer());
-        },
-
-        finish() {
-            if (this.phase !== 'spinning') {
-                return;
-            }
-
-            clearTimeout(this.fallbackTimer);
-
+            this.highlight = seado.name;
             this.phase = 'idle';
-            this.winner = this.segments[this.winnerIndex];
-            this.highlight = this.winner.name;
-            this.showResult = true;
+
+            this.record = {
+                seado,
+                reference: `SD-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${randomHex(4)}`,
+                drawnAt: now.toLocaleString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                }),
+                drawnBy,
+                pool,
+                poolSize: this.candidates.length,
+            };
+        },
+
+        copyRecord() {
+            if (! this.record) {
+                return;
+            }
+
+            const record = this.record;
+
+            const text = [
+                `SEADO draw ${record.reference}`,
+                `Selected: ${record.seado.name}`,
+                `Drawn: ${record.drawnAt}${record.drawnBy ? ` by ${record.drawnBy}` : ''}`,
+                `Pool (${record.poolSize}, ${record.pool}): ${this.candidates.map((seado) => seado.name).join(', ')}`,
+                'Method: secure random, equal odds',
+            ].join('\n');
+
+            navigator.clipboard?.writeText(text).then(() => {
+                this.copied = true;
+
+                setTimeout(() => (this.copied = false), 2000);
+            });
         },
     };
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ImportBatch;
 use App\Models\Rfa;
 use App\Services\AuditLogger;
+use App\Services\RfaWorkflowService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,6 +17,29 @@ use Throwable;
 
 class RfaImportController extends Controller
 {
+    /*
+    |--------------------------------------------------------------------------
+    | Dates the office export does not carry
+    |--------------------------------------------------------------------------
+    |
+    | Date Interviewed and Date TA/NORES are entered on the case page. When a
+    | re-imported row has no value for one, the value already on the case
+    | is kept instead of being wiped.
+    |
+    */
+
+    private const INTERVIEW_DATE_COLUMNS = [
+        'date_interview',
+        'date_interviewed',
+        'date_of_interview',
+        'interview_date',
+    ];
+
+    private const TA_NORES_DATE_COLUMNS = [
+        'date_ta_nores',
+        'ta_nores_date',
+    ];
+
     public function __construct(
         private readonly AuditLogger $auditLogger
     ) {
@@ -303,6 +327,12 @@ class RfaImportController extends Controller
                     $rfa = new Rfa();
 
                     $wasCreated = true;
+                } else {
+                    $mapped = $this->keepEnteredDates(
+                        $rfa,
+                        $mapped,
+                        $normalizedRow
+                    );
                 }
 
                 $rfa->fill($mapped);
@@ -497,10 +527,7 @@ class RfaImportController extends Controller
         $dateTaNores = $this->normalizeDate(
             $this->firstValue(
                 $row,
-                [
-                    'date_ta_nores',
-                    'ta_nores_date',
-                ]
+                self::TA_NORES_DATE_COLUMNS
             )
         );
 
@@ -528,11 +555,7 @@ class RfaImportController extends Controller
         $dateInterview = $this->normalizeDate(
             $this->firstValue(
                 $row,
-                [
-                    'date_interview',
-                    'date_of_interview',
-                    'interview_date',
-                ]
+                self::INTERVIEW_DATE_COLUMNS
             )
         );
 
@@ -621,6 +644,44 @@ class RfaImportController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | Filing mode
+        |--------------------------------------------------------------------------
+        |
+        | CSV "Mode" is NOT used here.
+        |--------------------------------------------------------------------------
+        */
+
+        $modeOfFiling =
+            $this->deriveModeOfFiling(
+                $row,
+                $docketNo,
+                $sourceCaseStatus
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | On-site interviewer dates
+        |--------------------------------------------------------------------------
+        |
+        | An on-site complainant is assigned an interviewer and interviewed the
+        | day they file: the assignment date is always the filing date, and a
+        | missing interview date (the office export has none) takes it too.
+        |--------------------------------------------------------------------------
+        */
+
+        $onsiteFiled = RfaWorkflowService::onsiteFilingDate(
+            $modeOfFiling,
+            $dateFiled
+        );
+
+        if ($onsiteFiled !== null) {
+            $dateAssignedInterviewer = $onsiteFiled;
+
+            $dateInterview ??= $onsiteFiled;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | Workflow status
         |--------------------------------------------------------------------------
         */
@@ -653,22 +714,6 @@ class RfaImportController extends Controller
                     $dateDisposed
                 );
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Filing mode
-        |--------------------------------------------------------------------------
-        |
-        | CSV "Mode" is NOT used here.
-        |--------------------------------------------------------------------------
-        */
-
-        $modeOfFiling =
-            $this->deriveModeOfFiling(
-                $row,
-                $docketNo,
-                $sourceCaseStatus
-            );
 
         /*
         |--------------------------------------------------------------------------
@@ -1224,6 +1269,36 @@ class RfaImportController extends Controller
         return $this->normalizeToken(
             $value
         );
+    }
+
+    /**
+     * On a re-import, keep a Date Interviewed or Date TA/NORES already on
+     * the case when the CSV row itself has no value for it. That covers both
+     * an empty cell and an interview date that was only assumed from the
+     * filing date.
+     *
+     * @param  array<string, mixed>  $mapped
+     * @param  array<string, string>  $row
+     * @return array<string, mixed>
+     */
+    private function keepEnteredDates(
+        Rfa $rfa,
+        array $mapped,
+        array $row
+    ): array {
+        foreach ([
+            'date_interview' => self::INTERVIEW_DATE_COLUMNS,
+            'date_ta_nores' => self::TA_NORES_DATE_COLUMNS,
+        ] as $field => $columns) {
+            if (
+                $rfa->{$field} !== null
+                && $this->firstValue($row, $columns) === null
+            ) {
+                $mapped[$field] = $rfa->{$field}->toDateString();
+            }
+        }
+
+        return $mapped;
     }
 
     private function firstValue(

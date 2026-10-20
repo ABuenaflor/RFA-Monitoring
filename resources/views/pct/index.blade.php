@@ -21,12 +21,14 @@
     {{-- INTRODUCTION --}}
     {{-- ========================================================= --}}
 
-    <section
-        class="flex flex-col
-               justify-between gap-4
-               lg:flex-row
-               lg:items-end"
-    >
+    <section class="space-y-4">
+
+        <div
+            class="flex flex-col
+                   justify-between gap-3
+                   sm:flex-row
+                   sm:items-end"
+        >
 
         <div>
 
@@ -63,125 +65,62 @@
 
         </div>
 
+            <a
+                href="{{ route('pct-cycle-time', array_filter(['office' => $officeFilter])) }}"
+                class="shrink-0 text-sm font-semibold
+                       text-blue-600 hover:text-blue-700"
+            >
+                See how the process runs →
+            </a>
+
+        </div>
+
+
+        {{-- PCT rules: one strip, a tile per checkpoint --}}
 
         <div
-            class="flex flex-col gap-3
-                   sm:flex-row sm:items-end"
+            class="rounded-2xl
+                   border border-slate-200
+                   bg-white px-5 py-4
+                   shadow-sm"
         >
 
-            {{-- Office filter: applies to the whole page --}}
-
-            <form
-                method="GET"
-                action="{{ route('pct-process') }}"
-            >
-
-                @foreach ([
-                    'search' => $search,
-                    'stage' => $stageFilter,
-                    'pct_status' => $classificationFilter,
-                ] as $name => $value)
-                    @if ($value !== '')
-                        <input
-                            type="hidden"
-                            name="{{ $name }}"
-                            value="{{ $value }}"
-                        >
-                    @endif
-                @endforeach
-
-                <label
-                    for="office"
-                    class="mb-1 block
-                           text-xs font-semibold
-                           text-slate-600"
-                >
-                    Office
-                </label>
-
-                <select
-                    id="office"
-                    name="office"
-                    onchange="this.form.submit()"
-                    class="w-full rounded-xl
-                           border border-slate-300
-                           bg-white px-4 py-2.5
-                           text-sm
-                           outline-none
-                           focus:border-blue-500
-                           focus:ring-4
-                           focus:ring-blue-100
-                           sm:w-64"
-                >
-
-                    <option value="">
-                        All Offices
-                    </option>
-
-                    @foreach ($offices as $label => $code)
-                        <option
-                            value="{{ $code }}"
-                            @selected($officeFilter === $code)
-                        >
-                            {{ $label }} ({{ $code }})
-                        </option>
-                    @endforeach
-
-                </select>
-
-                <noscript>
-                    <button
-                        type="submit"
-                        class="mt-2 rounded-xl
-                               bg-slate-950
-                               px-4 py-2
-                               text-xs font-semibold
-                               text-white"
-                    >
-                        Apply
-                    </button>
-                </noscript>
-
-            </form>
-
-
             <div
-                class="rounded-xl
-                       border border-slate-200
-                       bg-white px-4 py-3
-                       text-xs
-                       leading-5
-                       text-slate-500
-                       shadow-sm"
+                class="flex flex-col gap-1
+                       lg:flex-row lg:items-baseline
+                       lg:justify-between"
             >
-                <strong class="text-slate-700">
+                <h2 class="text-sm font-bold text-slate-900">
                     PCT Rules
-                </strong>
+                </h2>
 
-                <ol class="mt-1 list-decimal pl-4">
-                    @foreach ($checkpointDefinitions as $definition)
-                        <li>
-                            {{ $definition['label'] }}:
-                            <span class="font-semibold text-slate-700">
-                                {{ $definition['limit_label'] }}
-                            </span>
-                        </li>
-                    @endforeach
-                </ol>
-
-                <p class="mt-1 text-slate-400">
+                <p class="text-xs text-slate-400">
                     Deadline day = On PCT · past it = Beyond ·
                     day before (last 3 days on 10/30-day rules) = Nearing
                 </p>
-
-                <a
-                    href="{{ route('pct-cycle-time', array_filter(['office' => $officeFilter])) }}"
-                    class="mt-1 inline-block font-semibold
-                           text-blue-600 hover:text-blue-700"
-                >
-                    See how the process runs →
-                </a>
             </div>
+
+            <ol
+                class="mt-3 grid grid-cols-1 gap-3
+                       sm:grid-cols-2
+                       lg:grid-cols-5"
+            >
+                @foreach ($checkpointDefinitions as $definition)
+                    <li
+                        class="rounded-xl bg-slate-50
+                               px-3 py-2.5"
+                    >
+                        <p class="text-xs leading-5 text-slate-500">
+                            <span class="font-bold text-blue-600">{{ $loop->iteration }}.</span>
+                            {{ $definition['label'] }}
+                        </p>
+
+                        <p class="mt-1 text-sm font-bold text-slate-900">
+                            {{ $definition['limit_label'] }}
+                        </p>
+                    </li>
+                @endforeach
+            </ol>
 
         </div>
 
@@ -359,19 +298,13 @@
             action="{{ route('pct-process') }}"
             class="grid grid-cols-1
                    gap-4
-                   md:grid-cols-4"
+                   md:grid-cols-3
+                   xl:grid-cols-5"
         >
 
-            @if ($officeFilter !== '')
-                <input
-                    type="hidden"
-                    name="office"
-                    value="{{ $officeFilter }}"
-                >
-            @endif
-
             <div
-                class="md:col-span-2"
+                class="md:col-span-3
+                       xl:col-span-2"
             >
 
                 <label
@@ -399,6 +332,51 @@
                            focus:ring-4
                            focus:ring-blue-100"
                 >
+
+            </div>
+
+
+            {{-- Office: applies to the whole page, not just the timer table --}}
+
+            <div>
+
+                <label
+                    for="office"
+                    class="mb-2 block
+                           text-sm font-semibold
+                           text-slate-700"
+                >
+                    Office
+                </label>
+
+                <select
+                    id="office"
+                    name="office"
+
+                    class="w-full rounded-xl
+                           border border-slate-300
+                           bg-white px-4 py-3
+                           text-sm
+                           outline-none
+                           focus:border-blue-500
+                           focus:ring-4
+                           focus:ring-blue-100"
+                >
+
+                    <option value="">
+                        All Offices
+                    </option>
+
+                    @foreach ($offices as $label => $code)
+                        <option
+                            value="{{ $code }}"
+                            @selected($officeFilter === $code)
+                        >
+                            {{ $label }} ({{ $code }})
+                        </option>
+                    @endforeach
+
+                </select>
 
             </div>
 
@@ -521,7 +499,8 @@
 
 
             <div
-                class="md:col-span-4
+                class="md:col-span-3
+                       xl:col-span-5
                        flex flex-col gap-2
                        border-t border-slate-100
                        pt-4
@@ -530,7 +509,7 @@
             >
 
                 <a
-                    href="{{ route('pct-process', $officeFilter !== '' ? ['office' => $officeFilter] : []) }}"
+                    href="{{ route('pct-process') }}"
                     class="inline-flex
                            justify-center
                            rounded-xl

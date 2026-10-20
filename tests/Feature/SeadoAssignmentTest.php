@@ -160,8 +160,8 @@ class SeadoAssignmentTest extends TestCase
         $response = $this->actingAs($this->admin)
             ->get(route('seado-assignment.index', ['office' => 'RO-V-SPO']))
             ->assertOk()
-            ->assertSeeText('SEADO Roulette')
-            ->assertSee('seadoRoulette(', false);
+            ->assertSeeText('Random SEADO Draw')
+            ->assertSee('seadoDraw(', false);
 
         $this->assertSame(
             ['SEADO 1', 'SEADO 2', 'SEADO 3', 'SEADO 4', 'SEADO 5'],

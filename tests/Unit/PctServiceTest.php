@@ -86,7 +86,7 @@ class PctServiceTest extends TestCase
     |--------------------------------------------------------------------------
     */
 
-    public function test_onsite_assigned_the_same_day_is_on_pct_and_compliant(): void
+    public function test_onsite_assigned_the_same_day_is_nearing_and_compliant(): void
     {
         $result = $this->checkpoint(PctService::FILING_ASSIGNMENT, [
             'mode_of_filing' => 'onsite',
@@ -94,12 +94,12 @@ class PctServiceTest extends TestCase
             'date_assigned_interviewer' => '2026-01-05',
         ]);
 
-        $this->assertRated($result, 'completed', 0, 'on');
+        $this->assertRated($result, 'completed', 0, 'nearing');
         $this->assertTrue($result['is_compliant']);
-        $this->assertSame(0, $result['limit_days']);
+        $this->assertSame(1, $result['limit_days']);
     }
 
-    public function test_onsite_assigned_the_next_day_is_beyond_pct(): void
+    public function test_onsite_assigned_the_next_day_is_on_pct_and_compliant(): void
     {
         $result = $this->checkpoint(PctService::FILING_ASSIGNMENT, [
             'mode_of_filing' => 'onsite',
@@ -107,20 +107,32 @@ class PctServiceTest extends TestCase
             'date_assigned_interviewer' => '2026-01-06',
         ]);
 
-        $this->assertRated($result, 'completed', 1, 'beyond');
+        $this->assertRated($result, 'completed', 1, 'on');
+        $this->assertTrue($result['is_compliant']);
+    }
+
+    public function test_onsite_assigned_two_days_later_is_beyond_pct(): void
+    {
+        $result = $this->checkpoint(PctService::FILING_ASSIGNMENT, [
+            'mode_of_filing' => 'onsite',
+            'date_filed' => '2026-01-05',
+            'date_assigned_interviewer' => '2026-01-07',
+        ]);
+
+        $this->assertRated($result, 'completed', 2, 'beyond');
         $this->assertFalse($result['is_compliant']);
         $this->assertSame(1, $result['overdue_days']);
     }
 
-    public function test_an_unassigned_onsite_case_is_due_on_the_day_it_is_filed(): void
+    public function test_an_unassigned_onsite_case_is_due_the_day_after_filing(): void
     {
         $result = $this->checkpoint(PctService::FILING_ASSIGNMENT, [
             'mode_of_filing' => 'onsite',
             'date_filed' => '2026-01-05',
         ], '2026-01-05');
 
-        $this->assertRated($result, 'active', 0, 'on');
-        $this->assertSame(0, $result['remaining_days']);
+        $this->assertRated($result, 'active', 0, 'nearing');
+        $this->assertSame(1, $result['remaining_days']);
     }
 
     public function test_online_filing_has_a_two_day_limit(): void

@@ -189,7 +189,7 @@ final class Workflow
                 'Date Assigned to Interviewer',
 
             'date_interview' =>
-                'Date of Interview',
+                'Date Interviewed',
 
             'date_validated' =>
                 'Date Validated',

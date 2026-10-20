@@ -165,6 +165,40 @@ class Rfa extends Model
         );
     }
 
+    /**
+     * Open cases still missing a Date Interviewed or a Date TA/NORES, the
+     * two dates the office export does not carry.
+     */
+    public function scopeMissingIntakeDates(Builder $query): Builder
+    {
+        return $query
+            ->where('monitoring_bucket', '!=', Workflow::BUCKET_DISPOSED)
+            ->where(
+                fn (Builder $inner) => $inner
+                    ->whereNull('date_interview')
+                    ->orWhereNull('date_ta_nores')
+            );
+    }
+
+    public function needsIntakeDates(): bool
+    {
+        return $this->monitoring_bucket !== Workflow::BUCKET_DISPOSED
+            && ($this->date_interview === null || $this->date_ta_nores === null);
+    }
+
+    /**
+     * Same rule as scopeHandledBySeado(), for a single loaded case.
+     */
+    public function isHandledBySeado(User $user): bool
+    {
+        if ($this->seado_id !== null) {
+            return (int) $this->seado_id === (int) $user->id;
+        }
+
+        return filled($this->seado_name)
+            && mb_strtoupper(trim($this->seado_name)) === mb_strtoupper(trim((string) $user->name));
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Presentation Helpers

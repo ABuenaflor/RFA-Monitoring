@@ -454,6 +454,8 @@
 
 </div>
 
+<x-intake-reminder />
+
 </body>
 
 </html>

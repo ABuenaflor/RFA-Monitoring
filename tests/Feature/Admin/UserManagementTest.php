@@ -391,9 +391,10 @@ class UserManagementTest extends TestCase
 
         $manager = User::factory()->withRole($managerRole)->create();
 
+        // Only an administrator may change an administrator account at all.
         $this->actingAs($manager)
             ->patch(route('admin.access.toggle-status', $this->admin))
-            ->assertSessionHasErrors('user');
+            ->assertForbidden();
 
         $this->assertTrue($this->admin->fresh()->isActive());
     }

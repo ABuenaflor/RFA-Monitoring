@@ -58,6 +58,18 @@ class AppServiceProvider extends ServiceProvider
             $model::observe(AuditableObserver::class);
         }
 
+        /*
+        | Each sign-in raises the missing intake dates reminder again
+        | (resources/views/components/intake-reminder.blade.php).
+        */
+
+        Event::listen(
+            Login::class,
+            function (): void {
+                session()->put('intake_reminder', true);
+            }
+        );
+
         Event::listen(
             Login::class,
             function (Login $event): void {

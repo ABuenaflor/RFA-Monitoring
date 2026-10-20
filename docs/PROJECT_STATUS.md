@@ -100,15 +100,18 @@ These are deliberate, not defects:
    table.
 8. **Email alerts need a mail server** — set `MAIL_MAILER=smtp` and its
    settings, then `PCT_EMAIL_ENABLED=true`.
-9. **No case has a Date of Interview** — the CSV has no interview date, so
-   "Date Interviewed - SEADO Assignment" cannot be measured and
-   "Interviewer Assignment - Date Interviewed" mostly reads Completion Date
-   Missing. 47 cases also have no mode of filing.
+9. **The CSV has no Date Interviewed or Date TA/NORES** — on-site cases always
+   take their Date Filed as the Date Assigned to Interviewer, and as the Date
+   Interviewed when none is recorded (`rfa:apply-onsite-dates`, run once by
+   migration; every save and import applies the same rule). After sign-in,
+   each SEADO is reminded of their open cases still missing either date, and
+   the case page requires both before they continue; a re-import keeps them.
+   47 cases also have no mode of filing.
 
 ## Business rules that must not be changed casually
 
 - Five checkpoints (`PctService::definitions()`):
-  1. Date Filed - Interviewer Assignment — on-site: same day, online: 2 days
+  1. Date Filed - Interviewer Assignment — on-site: 1 day, online: 2 days
   2. Interviewer Assignment - Date Interviewed — 3 days
   3. Date Interviewed - SEADO Assignment — 3 days
   4. SEADO Assignment - 1st Conference — 10 days

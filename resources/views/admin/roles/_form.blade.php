@@ -195,7 +195,18 @@
 
                         @foreach ($group['permissions'] as $key => $description)
 
-                            @if (\App\Support\Permissions::isAdminOnly($key))
+                            @if (! \App\Support\Permissions::grantableTo($key, $role?->slug))
+
+                                @php
+                                    $reservedLabel = collect(['Administrator'])
+                                        ->merge(
+                                            \App\Models\Role::query()
+                                                ->whereIn('slug', \App\Support\Permissions::reserved()[$key])
+                                                ->orderBy('name')
+                                                ->pluck('name')
+                                        )
+                                        ->join(', ', ' and ') . ' only';
+                                @endphp
 
                                 <div
                                     class="flex items-start gap-3
@@ -207,7 +218,7 @@
                                     <input
                                         type="checkbox"
                                         disabled
-                                        aria-label="{{ $description }} (Administrator only)"
+                                        aria-label="{{ $description }} ({{ $reservedLabel }})"
                                         class="mt-0.5 rounded
                                                border-slate-300"
                                     >
@@ -228,7 +239,7 @@
                                                    text-slate-400"
                                         >
                                             <span class="font-mono">{{ $key }}</span>
-                                            &middot; Administrator only
+                                            &middot; {{ $reservedLabel }}
                                         </span>
 
                                     </span>

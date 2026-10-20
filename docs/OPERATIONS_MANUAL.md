@@ -144,7 +144,7 @@ on the case timeline.
 
 | # | Checkpoint | From → To | Limit |
 | --- | --- | --- | --- |
-| 1 | Date Filed - Interviewer Assignment | Date Filed → Date Assigned to Interviewer | On-site: same day · Online: 2 days |
+| 1 | Date Filed - Interviewer Assignment | Date Filed → Date Assigned to Interviewer | On-site: 1 day · Online: 2 days |
 | 2 | Interviewer Assignment - Date Interviewed | Date Assigned to Interviewer → Date of Interview | 3 days |
 | 3 | Date Interviewed - SEADO Assignment | Date of Interview → Date Assigned to SEADO | 3 days |
 | 4 | SEADO Assignment - 1st Conference | Date Assigned to SEADO → 1st Conference | 10 days |

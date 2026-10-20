@@ -407,6 +407,120 @@
                     </div>
 
 
+                    {{-- OFFICE --}}
+
+                    <div>
+
+                        <label
+                            for="office"
+                            class="mb-2 block
+                                   text-sm font-semibold
+                                   text-slate-700"
+                        >
+                            Office
+                        </label>
+
+                        <select
+                            id="office"
+                            name="office"
+
+                            class="w-full
+                                   rounded-xl
+                                   border border-slate-300
+                                   bg-white
+                                   px-4 py-3
+                                   text-sm
+                                   text-slate-700
+                                   shadow-sm
+                                   outline-none
+                                   focus:border-blue-500
+                                   focus:ring-4
+                                   focus:ring-blue-100"
+                        >
+
+                            <option value="">
+                                All Offices
+                            </option>
+
+                            @foreach (
+                                $offices
+                                as $officeLabel => $officeCode
+                            )
+
+                                <option
+                                    value="{{ $officeCode }}"
+                                    @selected(
+                                        request('office')
+                                        === $officeCode
+                                    )
+                                >
+                                    {{ $officeLabel }} ({{ $officeCode }})
+                                </option>
+
+                            @endforeach
+
+                        </select>
+
+                    </div>
+
+
+                    {{-- SEADO --}}
+
+                    <div>
+
+                        <label
+                            for="seado"
+                            class="mb-2 block
+                                   text-sm font-semibold
+                                   text-slate-700"
+                        >
+                            SEADO
+                        </label>
+
+                        <select
+                            id="seado"
+                            name="seado"
+
+                            class="w-full
+                                   rounded-xl
+                                   border border-slate-300
+                                   bg-white
+                                   px-4 py-3
+                                   text-sm
+                                   text-slate-700
+                                   shadow-sm
+                                   outline-none
+                                   focus:border-blue-500
+                                   focus:ring-4
+                                   focus:ring-blue-100"
+                        >
+
+                            <option value="">
+                                All SEADOs
+                            </option>
+
+                            @foreach (
+                                $seados
+                                as $seadoOption
+                            )
+
+                                <option
+                                    value="{{ $seadoOption }}"
+                                    @selected(
+                                        request('seado')
+                                        === $seadoOption
+                                    )
+                                >
+                                    {{ $seadoOption }}
+                                </option>
+
+                            @endforeach
+
+                        </select>
+
+                    </div>
+
+
                     {{-- MONITORING --}}
 
                     <div>
@@ -1342,6 +1456,20 @@
                             </th>
 
 
+                            {{-- SEADO --}}
+
+                            <th
+                                class="px-5 py-3.5
+                                       text-left
+                                       text-xs font-bold
+                                       uppercase
+                                       tracking-wider
+                                       text-slate-500"
+                            >
+                                SEADO
+                            </th>
+
+
                             {{-- CASE --}}
 
                             <th
@@ -1681,6 +1809,36 @@
     @endif
 
 </td>
+
+
+                                {{-- SEADO --}}
+
+                                <td
+                                    class="px-5 py-4"
+                                >
+
+                                    @if ($rfa->seado_name)
+
+                                        <span
+                                            class="block max-w-[12rem]
+                                                   text-sm font-semibold
+                                                   text-slate-800"
+                                        >
+                                            {{ $rfa->seado_name }}
+                                        </span>
+
+                                    @else
+
+                                        <span
+                                            class="text-sm
+                                                   text-slate-400"
+                                        >
+                                            Unassigned
+                                        </span>
+
+                                    @endif
+
+                                </td>
 
 
                                 {{-- OPEN CASE --}}
