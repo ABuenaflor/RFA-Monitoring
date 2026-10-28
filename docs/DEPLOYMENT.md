@@ -54,6 +54,7 @@ npm ci
 npm run build
 
 php artisan optimize:clear
+php artisan optimize
 ```
 
 Point the web server's document root at **`public/`**, never at the project
@@ -95,6 +96,7 @@ npm run build
 
 # 8. Caches
 php artisan optimize:clear
+php artisan optimize
 
 # 9. Resume
 php artisan up
@@ -123,6 +125,7 @@ git switch --detach <previous-commit>
 composer install --no-dev --optimize-autoloader
 npm ci && npm run build
 php artisan optimize:clear
+php artisan optimize
 php artisan up
 ```
 
@@ -142,6 +145,7 @@ git switch --detach <previous-commit>
 composer install --no-dev --optimize-autoloader
 npm ci && npm run build
 php artisan optimize:clear
+php artisan optimize
 
 php artisan up
 ```
@@ -187,8 +191,70 @@ Confirm it is working: `Release Readiness` → `deploy.scheduler`.
 | At least two administrators | One lost password cannot lock out access control |
 | No outstanding temporary passwords | An unused issued password is a standing risk |
 | A backup exists and restoring it has been rehearsed | An untested backup is not a backup |
+| `SESSION_SECURE_COOKIE=true` (with HTTPS) | The session cookie is never sent over plain HTTP |
+| `expose_php = Off` in `php.ini` | Responses stop advertising the PHP version |
 
 `Release Readiness` checks every one of these against the running system.
+
+The application itself sends anti-framing, no-sniff and referrer headers on
+every page, limits failed sign-ins per account and per network address, and
+signs out an account's other sessions when its password changes.
+
+---
+
+## Capacity and performance
+
+### Never serve real users with `php artisan serve`
+
+`php artisan serve` (and `composer dev`, which runs it) handles **one request
+at a time**. One person opening PCT Process Monitoring makes everyone else
+wait for it. It is for development only.
+
+Measured on a 4-core laptop with 3,000 cases, staff clicking every 5–15
+seconds:
+
+| Concurrent users | `artisan serve`, no OPcache | 4 PHP workers + OPcache |
+| --- | --- | --- |
+| 50 | median 7 s, slowest 5% 13.5 s | median 0.09 s, slowest 5% 2 s |
+| 100 | median 24 s, 4.5% of requests time out | median 0.09 s, no errors |
+| 300 | not usable | median 2 s, no errors |
+
+### What production needs
+
+1. **OPcache on.** Without it every request recompiles the framework (about
+   300 ms before any work is done; about 50 ms with it). In `php.ini`:
+
+   ```ini
+   zend_extension=opcache
+   opcache.enable=1
+   opcache.memory_consumption=192
+   opcache.interned_strings_buffer=16
+   opcache.max_accelerated_files=20000
+   ```
+
+2. **Several PHP workers** behind a real web server, so a slow page only
+   occupies one of them. Start at two workers per CPU core.
+
+   - **Linux:** Nginx or Apache with PHP-FPM — `pm = dynamic`,
+     `pm.max_children = 8` on a 4-core server.
+   - **Windows:** IIS with FastCGI pointing at `php-cgi.exe` — set
+     *Max Instances* to 8 on a 4-core server. (XAMPP's bundled PHP is 8.2,
+     too old for this application; it needs PHP 8.3 or newer.)
+
+3. **MySQL**, not SQLite. SQLite locks the whole database on every write.
+
+4. **Production caches** — `php artisan optimize` after every deployment (the
+   steps above include it). Run `php artisan optimize:clear` before editing
+   `.env`, then `php artisan optimize` again.
+
+5. **The scheduler** (see *Scheduler* above). It runs the PCT scan at 07:00. Without it the
+   notification bell refreshes alerts at most hourly, after its own response
+   so no user waits on it, but still using a worker for a second or two.
+
+### Monitoring
+
+`GET /up` returns HTTP 200 while the application can boot. Point an uptime
+monitor at it.
 
 ---
 

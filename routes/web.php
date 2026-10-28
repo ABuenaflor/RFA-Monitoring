@@ -63,9 +63,12 @@ Route::post(
 | are applied per route with the framework can: middleware — UI visibility
 | is never treated as authorization.
 |
+| auth.session signs out every other session of an account once its
+| password changes, so a stolen session dies with the old password.
+|
 */
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'auth.session'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------

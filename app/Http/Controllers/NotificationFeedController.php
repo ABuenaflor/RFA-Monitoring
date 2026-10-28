@@ -86,16 +86,23 @@ class NotificationFeedController extends Controller
         );
     }
 
+    /**
+     * The refresh scans every open case, which takes seconds. It runs after
+     * this response has been sent, so the user whose poll triggered it is not
+     * kept waiting; the refreshed alerts appear on the next poll.
+     */
     private function refreshPctAlerts(NotificationService $notifications): void
     {
         if (! Cache::add('rfa.pct_auto_scan', now()->toIso8601String(), now()->addMinutes(self::AUTO_SCAN_MINUTES))) {
             return;
         }
 
-        try {
-            $notifications->scanPct(sendEmails: false);
-        } catch (\Throwable $exception) {
-            Log::warning('Automatic PCT alert refresh failed: ' . $exception->getMessage());
-        }
+        defer(function () use ($notifications): void {
+            try {
+                $notifications->scanPct(sendEmails: false);
+            } catch (\Throwable $exception) {
+                Log::warning('Automatic PCT alert refresh failed: ' . $exception->getMessage());
+            }
+        });
     }
 }
