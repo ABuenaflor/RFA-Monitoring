@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Rfa;
 use App\Services\PctService;
 use App\Services\SettingsService;
+use App\Support\Seados;
 use App\Support\SpreadsheetSafe;
 use App\Support\SystemSettings;
 use Illuminate\Database\Eloquent\Builder;
@@ -669,12 +670,12 @@ $dispositionSummary = [
         |--------------------------------------------------------------------------
         */
 
-        $seados = Rfa::query()
+        $seados = Seados::withDesignated(Rfa::query()
             ->whereNotNull('seado_name')
             ->where('seado_name', '!=', '')
             ->distinct()
             ->orderBy('seado_name')
-            ->pluck('seado_name');
+            ->pluck('seado_name'));
 
         $workflowStatuses = Rfa::query()
             ->whereNotNull('status')

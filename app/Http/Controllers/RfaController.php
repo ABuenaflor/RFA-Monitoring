@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Rfa;
 use App\Services\SettingsService;
+use App\Support\Seados;
 use App\Support\SystemSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -336,12 +337,12 @@ class RfaController extends Controller
             ->orderBy('disposition_status')
             ->pluck('disposition_status');
 
-        $seados = Rfa::query()
+        $seados = Seados::withDesignated(Rfa::query()
             ->whereNotNull('seado_name')
             ->where('seado_name', '!=', '')
             ->distinct()
             ->orderBy('seado_name')
-            ->pluck('seado_name');
+            ->pluck('seado_name'));
 
         /*
         |--------------------------------------------------------------------------

@@ -7,6 +7,7 @@ use App\Models\RouletteExclusion;
 use App\Models\User;
 use App\Services\NotificationService;
 use App\Services\RfaWorkflowService;
+use App\Support\Seados;
 use App\Support\Workflow;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -21,8 +22,9 @@ use Illuminate\View\View;
  * and a queue of open cases with no SEADO yet. "Assign to a SEADO" offers
  * the five SEADOs in the case's office who have handled the fewest RFAs.
  *
- * SEADOs are everyone named as SEADO on a case plus every active user with
- * the SEADO role, matched to each other by exact name.
+ * SEADOs are everyone named as SEADO on a case, every designated SEADO in
+ * config/seados.php, and every active user with the SEADO role, matched to
+ * each other by exact name.
  */
 class SeadoAssignmentController extends Controller
 {
@@ -272,7 +274,7 @@ class SeadoAssignmentController extends Controller
      * Every SEADO with their handled-case counts, fewest handled first.
      *
      * With an office, counts only that office's cases, and lists only SEADOs
-     * who handle cases there or whose account is in that office.
+     * who handle cases there or who are designated or have an account there.
      *
      * @return Collection<int, array{key: string, name: string, user_id: ?int, total: int, open: int, disposed: int, offices: array<int, string>, has_account: bool}>
      */
@@ -305,6 +307,17 @@ class SeadoAssignmentController extends Controller
             if ($row->office) {
                 $roster[$key]['offices'][] = $row->office;
             }
+        }
+
+        /*
+        | Designated SEADOs (config/seados.php): list them in their office
+        | even before they have handled a case.
+        */
+
+        foreach (Seados::designated($office) as $seado) {
+            $key = $this->key($seado['name']);
+
+            $roster[$key] ??= $this->blank($key, trim($seado['name']));
         }
 
         /*
@@ -394,7 +407,7 @@ class SeadoAssignmentController extends Controller
 
     private function key(string $name): string
     {
-        return mb_strtoupper(preg_replace('/\s+/', ' ', trim($name)));
+        return Seados::key($name);
     }
 
     private function isBefore(string $status, string $target): bool

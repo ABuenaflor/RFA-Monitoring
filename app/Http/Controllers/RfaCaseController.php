@@ -8,6 +8,7 @@ use App\Services\NotificationService;
 use App\Services\PctService;
 use App\Services\RfaWorkflowService;
 use App\Support\Permissions;
+use App\Support\Seados;
 use App\Support\Workflow;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -55,6 +56,9 @@ class RfaCaseController extends Controller
                 ->active()
                 ->orderBy('name')
                 ->get(['id', 'name', 'office', 'position']),
+
+            'seadoNames' =>
+                Seados::withDesignated($this->distinctValues('seado_name')),
 
             'dispositionStatuses' =>
                 $this->distinctValues('disposition_status'),
