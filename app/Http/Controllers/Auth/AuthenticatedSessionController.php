@@ -7,11 +7,19 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
 {
+    /**
+     * Failed sign-ins allowed from one address within the window.
+     */
+    private const MAX_FAILURES_PER_IP = 20;
+
+    private const FAILURE_WINDOW_SECONDS = 900;
+
     public function create(): View
     {
         return view('auth.login');
@@ -31,6 +39,29 @@ class AuthenticatedSessionController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | Password spraying guard
+        |--------------------------------------------------------------------------
+        |
+        | throttle:login stops guessing one account's password. This stops one
+        | address trying a common password against many accounts. Only failed
+        | attempts count, so an office signing in together from one shared
+        | address is never blocked.
+        |
+        */
+
+        $failureKey = 'login-failures:' . $request->ip();
+
+        if (RateLimiter::tooManyAttempts($failureKey, self::MAX_FAILURES_PER_IP)) {
+            throw ValidationException::withMessages([
+                'email' => sprintf(
+                    'Too many failed sign-in attempts from this network. Try again in %d minutes.',
+                    (int) ceil(RateLimiter::availableIn($failureKey) / 60)
+                ),
+            ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | Credential check
         |--------------------------------------------------------------------------
         */
@@ -44,6 +75,8 @@ class AuthenticatedSessionController extends Controller
                 $remember
             )
         ) {
+            RateLimiter::hit($failureKey, self::FAILURE_WINDOW_SECONDS);
+
             throw ValidationException::withMessages([
                 'email' =>
                     'These credentials do not match our records.',
@@ -89,6 +122,16 @@ class AuthenticatedSessionController extends Controller
         }
 
         $request->session()->regenerate();
+
+        /*
+        | Tie the session to the password it signed in with, so auth.session
+        | ends it if the password changes before its next request.
+        */
+
+        $request->session()->put(
+            'password_hash_' . Auth::getDefaultDriver(),
+            Auth::guard()->hashPasswordForCookie($user->getAuthPassword())
+        );
 
         $this->recordSignIn($user, $request);
 

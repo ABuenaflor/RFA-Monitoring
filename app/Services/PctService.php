@@ -30,6 +30,16 @@ use Carbon\Carbon;
  */
 class PctService
 {
+    /**
+     * The case being evaluated and its dates, each cast once. The PCT pages
+     * evaluate every case, and re-casting the same attribute dozens of times
+     * per case was most of their load time.
+     */
+    private ?Rfa $datesOf = null;
+
+    /** @var array<string, Carbon|null> */
+    private array $dates = [];
+
     public function __construct(
         private ?PctCalendar $calendar = null
     ) {
@@ -97,7 +107,10 @@ class PctService
      */
     public static function definitions(): array
     {
-        return [
+        // Fixed for the life of the process; built once, read per checkpoint.
+        static $definitions = null;
+
+        return $definitions ??= [
             self::FILING_ASSIGNMENT => [
                 'label' => 'Date Filed - Interviewer Assignment',
                 'short_label' => 'Filed → Interviewer',
@@ -226,23 +239,33 @@ class PctService
             ->copy()
             ->startOfDay();
 
-        $checkpoints = [];
+        $this->datesOf = $rfa;
 
-        foreach (self::definitions() as $key => $definition) {
-            $checkpoints[$key] = $this->checkpoint(
-                $rfa,
-                $key,
-                $definition,
-                $asOf
-            );
+        $this->dates = [];
+
+        try {
+            $checkpoints = [];
+
+            foreach (self::definitions() as $key => $definition) {
+                $checkpoints[$key] = $this->checkpoint(
+                    $rfa,
+                    $key,
+                    $definition,
+                    $asOf
+                );
+            }
+
+            return [
+                'checkpoints' => $checkpoints,
+
+                'total_processing' =>
+                    $this->totalProcessing($rfa),
+            ];
+        } finally {
+            $this->datesOf = null;
+
+            $this->dates = [];
         }
-
-        return [
-            'checkpoints' => $checkpoints,
-
-            'total_processing' =>
-                $this->totalProcessing($rfa),
-        ];
     }
 
     /**
@@ -393,7 +416,7 @@ class PctService
         );
 
         foreach (array_slice(self::DATE_ORDER, $endIndex + 1) as $field) {
-            if ($rfa->{$field}) {
+            if ($this->castDate($rfa, $field) !== null) {
                 return true;
             }
         }
@@ -481,19 +504,39 @@ class PctService
     {
         return $rfa->monitoring_bucket === Workflow::BUCKET_DISPOSED
             || $rfa->status === Workflow::DISPOSED
-            || $rfa->date_disposed !== null
+            || $this->castDate($rfa, 'date_disposed') !== null
             || strtolower(trim((string) $rfa->source_case_status)) === 'disposed';
     }
 
+    /**
+     * A date of the case as a fresh instance the caller may modify.
+     */
     private function dateValue(Rfa $rfa, string $field): ?Carbon
     {
-        $value = $rfa->{$field};
+        return $this->castDate($rfa, $field)?->copy();
+    }
 
-        if (! $value) {
-            return null;
+    /**
+     * A date of the case, cast once per evaluation. Shared — copy before
+     * modifying.
+     */
+    private function castDate(Rfa $rfa, string $field): ?Carbon
+    {
+        if ($rfa === $this->datesOf && array_key_exists($field, $this->dates)) {
+            return $this->dates[$field];
         }
 
-        return Carbon::parse($value)->startOfDay();
+        $value = $rfa->{$field};
+
+        $date = $value
+            ? Carbon::parse($value)->startOfDay()
+            : null;
+
+        if ($rfa === $this->datesOf) {
+            $this->dates[$field] = $date;
+        }
+
+        return $date;
     }
 
     private function daysBetween(Carbon $start, Carbon $end): int

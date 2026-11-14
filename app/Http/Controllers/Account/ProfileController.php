@@ -90,6 +90,11 @@ class ProfileController extends Controller
         |--------------------------------------------------------------------------
         | Invalidate other sessions
         |--------------------------------------------------------------------------
+        |
+        | The auth.session middleware signs out every other session whose
+        | stored password hash no longer matches; this one keeps going with
+        | a fresh ID.
+        |
         */
 
         $request->session()->regenerate();

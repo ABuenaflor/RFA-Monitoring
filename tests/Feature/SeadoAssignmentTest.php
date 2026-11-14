@@ -23,6 +23,89 @@ class SeadoAssignmentTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
 
         $this->admin = User::factory()->administrator()->create();
+
+        config(['seados.designated' => []]);
+    }
+
+    private function designate(string $name, string $office): void
+    {
+        config(['seados.designated' => [
+            ...config('seados.designated'),
+            ['name' => $name, 'office' => $office, 'position' => 'LEO II', 'id_number' => null],
+        ]]);
+    }
+
+    public function test_the_designated_seado_list_comes_from_the_office_order(): void
+    {
+        $designated = require config_path('seados.php');
+
+        $names = array_column($designated['designated'], 'name');
+
+        $this->assertCount(33, $names);
+        $this->assertSame($names, array_unique($names));
+        $this->assertContains('ERIC A. FETALCORIN', $names);
+        $this->assertContains('KEVIN B. BRIONES', $names);
+
+        foreach ($designated['designated'] as $seado) {
+            $this->assertContains($seado['office'], config('offices.list'));
+        }
+    }
+
+    public function test_designated_seados_are_listed_in_their_office_before_handling_a_case(): void
+    {
+        $this->handled('BUSY SEADO', 3, 'RO-V-SPO');
+        $this->designate('NEW SORSOGON SEADO', 'RO-V-SPO');
+        $this->designate('NEW ALBAY SEADO', 'RO-V-APFO');
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('seado-assignment.index', ['office' => 'RO-V-SPO']))
+            ->assertOk();
+
+        $this->assertSame(['NEW SORSOGON SEADO', 'BUSY SEADO'], $response->viewData('roster')->pluck('name')->all());
+        $this->assertSame(['NEW SORSOGON SEADO', 'BUSY SEADO'], $response->viewData('roulette')->pluck('name')->all());
+        $this->assertContains('NEW SORSOGON SEADO', $response->viewData('excludable')->all());
+    }
+
+    public function test_a_designated_seado_already_on_cases_is_listed_once(): void
+    {
+        $this->handled('ROLDAN MARK R. REYES', 2, 'RO-V-CPO');
+        $this->designate('Roldan Mark R.  Reyes', 'RO-V-CPO');
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('seado-assignment.index'))
+            ->assertOk();
+
+        $roster = $response->viewData('roster');
+
+        $this->assertCount(1, $roster);
+        $this->assertSame(2, $roster->first()['total']);
+    }
+
+    public function test_a_designated_seado_can_be_assigned_and_appears_in_the_filters(): void
+    {
+        $this->designate('NEW ALBAY SEADO', 'RO-V-APFO');
+
+        $rfa = Rfa::factory()->create(['office' => 'RO-V-APFO']);
+
+        $this->actingAs($this->admin)
+            ->post(route('seado-assignment.assign', $rfa), [
+                'seado_name' => 'NEW ALBAY SEADO',
+                'date_assigned_seado' => now()->toDateString(),
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('NEW ALBAY SEADO', $rfa->fresh()->seado_name);
+
+        $this->designate('UNASSIGNED SEADO', 'RO-V-APFO');
+
+        $listing = $this->actingAs($this->admin)->get(route('listing'))->assertOk();
+
+        $this->assertSame(['NEW ALBAY SEADO', 'UNASSIGNED SEADO'], $listing->viewData('seados')->all());
+
+        $this->actingAs($this->admin)
+            ->get(route('rfas.show', $rfa))
+            ->assertOk()
+            ->assertSee('<option value="UNASSIGNED SEADO"></option>', false);
     }
 
     private function handled(string $name, int $count, string $office = 'RO-V-APFO'): void

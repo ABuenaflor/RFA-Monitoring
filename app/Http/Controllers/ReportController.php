@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Rfa;
 use App\Services\PctService;
 use App\Services\SettingsService;
+use App\Support\Seados;
+use App\Support\SpreadsheetSafe;
 use App\Support\SystemSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -668,12 +670,12 @@ $dispositionSummary = [
         |--------------------------------------------------------------------------
         */
 
-        $seados = Rfa::query()
+        $seados = Seados::withDesignated(Rfa::query()
             ->whereNotNull('seado_name')
             ->where('seado_name', '!=', '')
             ->distinct()
             ->orderBy('seado_name')
-            ->pluck('seado_name');
+            ->pluck('seado_name'));
 
         $workflowStatuses = Rfa::query()
             ->whereNotNull('status')
@@ -1242,7 +1244,7 @@ public function print(
 
                     fputcsv(
                         $handle,
-                        [
+                        SpreadsheetSafe::row([
                             $rfa->reference_no,
                             $rfa->docket_no,
                             $rfa->office,
@@ -1297,7 +1299,7 @@ public function print(
                             $rfa->workers_involved,
                             $rfa->workers_benefited,
                             $rfa->monetary_benefit,
-                        ]
+                        ])
                     );
                 }
 

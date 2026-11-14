@@ -11,6 +11,7 @@ use App\Support\Permissions;
 use App\Support\Workflow;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Builds the in-system work queue.
@@ -38,6 +39,14 @@ class NotificationService
      */
     private ?array $accountsByName = null;
 
+    /**
+     * Existing PCT alerts keyed by "user_id|dedupe_key", loaded once per scan
+     * so refreshing thousands of alerts does not look each one up.
+     *
+     * @var array<string, AppNotification>|null
+     */
+    private ?array $existingAlerts = null;
+
     public function __construct(
         private readonly PctService $pctService,
         private readonly PctEmailService $pctEmailService
@@ -58,10 +67,12 @@ class NotificationService
         ?string $actionUrl = null,
         bool $resetRead = false
     ): AppNotification {
-        $notification = AppNotification::query()
-            ->where('user_id', $user->id)
-            ->where('dedupe_key', $dedupeKey)
-            ->first();
+        $notification = $this->existingAlerts !== null
+            ? ($this->existingAlerts[$user->id . '|' . $dedupeKey] ?? null)
+            : AppNotification::query()
+                ->where('user_id', $user->id)
+                ->where('dedupe_key', $dedupeKey)
+                ->first();
 
         $attributes = [
             'user_id' => $user->id,
@@ -82,7 +93,13 @@ class NotificationService
         ];
 
         if ($notification === null) {
-            return AppNotification::create($attributes);
+            $notification = AppNotification::create($attributes);
+
+            if ($this->existingAlerts !== null) {
+                $this->existingAlerts[$user->id . '|' . $dedupeKey] = $notification;
+            }
+
+            return $notification;
         }
 
         /*
@@ -131,156 +148,180 @@ class NotificationService
 
         $emailCandidates = [];
 
-        Rfa::query()
-            ->where('monitoring_bucket', '!=', Workflow::BUCKET_DISPOSED)
-            ->whereNull('date_disposed')
-            ->with(['interviewer', 'seado'])
-            ->chunkById(200, function (Collection $rfas) use (
-                &$generated,
-                &$unassigned,
-                &$counts,
-                &$emailCandidates
-            ) {
-                foreach ($rfas as $rfa) {
-                    $counts['cases_scanned']++;
-
-                    $pct = $this->pctService->evaluate($rfa);
-
-                    foreach ($this->emailAlerts($pct) as $alert) {
-                        $recipient = $this->recipientFor(
-                            $rfa,
-                            $alert['stage']
-                        );
-
-                        if ($recipient !== null) {
-                            $emailCandidates[] = $alert + [
-                                'user' => $recipient,
-                                'rfa' => $rfa,
-                            ];
-                        }
-                    }
-
-                    foreach ($this->breaches($pct) as $breach) {
-                        $recipient = $this->recipientFor(
-                            $rfa,
-                            $breach['stage']
-                        );
-
-                        if ($recipient === null) {
-                            $unassigned[$breach['stage']]++;
-
-                            continue;
-                        }
-
-                        $notification = $this->push(
-                            user: $recipient,
-
-                            dedupeKey: "pct:{$breach['stage']}:{$rfa->id}",
-
-                            category: $breach['category'],
-
-                            severity: $breach['severity'],
-
-                            title: $breach['title']
-                                . ' — ' . $rfa->displayReference(),
-
-                            message: $breach['message'],
-
-                            rfa: $rfa,
-
-                            actionUrl: route('rfas.show', $rfa)
-                        );
-
-                        $generated[] = $notification->id;
-
-                        $counts['alerts']++;
-                    }
-
-                    foreach ($this->nearing($pct) as $alert) {
-                        $recipient = $this->recipientFor(
-                            $rfa,
-                            $alert['stage']
-                        );
-
-                        if ($recipient === null) {
-                            continue;
-                        }
-
-                        $notification = $this->push(
-                            user: $recipient,
-
-                            dedupeKey: "pct:{$alert['stage']}:{$rfa->id}",
-
-                            category: $alert['category'],
-
-                            severity: AppNotification::SEVERITY_INFO,
-
-                            title: $alert['title']
-                                . ' — ' . $rfa->displayReference(),
-
-                            message: $alert['message'],
-
-                            rfa: $rfa,
-
-                            actionUrl: route('rfas.show', $rfa)
-                        );
-
-                        $generated[] = $notification->id;
-
-                        $counts['alerts']++;
-                    }
-                }
-            });
-
         /*
-        |--------------------------------------------------------------------------
-        | Unassigned backlog
-        |--------------------------------------------------------------------------
+        | One query for every existing PCT alert, and one transaction for the
+        | whole refresh: thousands of separate commits made the scan take
+        | seconds and held the database while it ran.
         */
 
-        foreach ($unassigned as $stage => $total) {
-            foreach ($watchers as $watcher) {
-                $key = "pct:unassigned:{$stage}";
-
-                if ($total === 0) {
-                    continue;
-                }
-
-                $notification = $this->push(
-                    user: $watcher,
-
-                    dedupeKey: $key,
-
-                    category: $this->categoryFor($stage),
-
-                    severity: AppNotification::SEVERITY_WARNING,
-
-                    title: $total . ' unassigned '
-                        . \Illuminate\Support\Str::plural('case', $total)
-                        . ' breaching ' . $this->stageLabel($stage),
-
-                    message: 'These cases have no system account assigned, so no'
-                        . ' individual officer has been alerted.',
-
-                    actionUrl: route('pct-process')
-                );
-
-                $generated[] = $notification->id;
-
-                $counts['alerts']++;
-            }
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Clear alerts whose condition no longer holds
-        |--------------------------------------------------------------------------
-        */
-
-        $counts['cleared'] = AppNotification::query()
+        $this->existingAlerts = AppNotification::query()
             ->where('dedupe_key', 'like', 'pct:%')
-            ->whereNotIn('id', $generated ?: [0])
-            ->delete();
+            ->get()
+            ->keyBy(fn (AppNotification $alert) => $alert->user_id . '|' . $alert->dedupe_key)
+            ->all();
+
+        DB::beginTransaction();
+
+        try {
+            Rfa::query()
+                ->where('monitoring_bucket', '!=', Workflow::BUCKET_DISPOSED)
+                ->whereNull('date_disposed')
+                ->with(['interviewer', 'seado'])
+                ->chunkById(200, function (Collection $rfas) use (
+                    &$generated,
+                    &$unassigned,
+                    &$counts,
+                    &$emailCandidates
+                ) {
+                    foreach ($rfas as $rfa) {
+                        $counts['cases_scanned']++;
+
+                        $pct = $this->pctService->evaluate($rfa);
+
+                        foreach ($this->emailAlerts($pct) as $alert) {
+                            $recipient = $this->recipientFor(
+                                $rfa,
+                                $alert['stage']
+                            );
+
+                            if ($recipient !== null) {
+                                $emailCandidates[] = $alert + [
+                                    'user' => $recipient,
+                                    'rfa' => $rfa,
+                                ];
+                            }
+                        }
+
+                        foreach ($this->breaches($pct) as $breach) {
+                            $recipient = $this->recipientFor(
+                                $rfa,
+                                $breach['stage']
+                            );
+
+                            if ($recipient === null) {
+                                $unassigned[$breach['stage']]++;
+
+                                continue;
+                            }
+
+                            $notification = $this->push(
+                                user: $recipient,
+
+                                dedupeKey: "pct:{$breach['stage']}:{$rfa->id}",
+
+                                category: $breach['category'],
+
+                                severity: $breach['severity'],
+
+                                title: $breach['title']
+                                    . ' — ' . $rfa->displayReference(),
+
+                                message: $breach['message'],
+
+                                rfa: $rfa,
+
+                                actionUrl: route('rfas.show', $rfa)
+                            );
+
+                            $generated[] = $notification->id;
+
+                            $counts['alerts']++;
+                        }
+
+                        foreach ($this->nearing($pct) as $alert) {
+                            $recipient = $this->recipientFor(
+                                $rfa,
+                                $alert['stage']
+                            );
+
+                            if ($recipient === null) {
+                                continue;
+                            }
+
+                            $notification = $this->push(
+                                user: $recipient,
+
+                                dedupeKey: "pct:{$alert['stage']}:{$rfa->id}",
+
+                                category: $alert['category'],
+
+                                severity: AppNotification::SEVERITY_INFO,
+
+                                title: $alert['title']
+                                    . ' — ' . $rfa->displayReference(),
+
+                                message: $alert['message'],
+
+                                rfa: $rfa,
+
+                                actionUrl: route('rfas.show', $rfa)
+                            );
+
+                            $generated[] = $notification->id;
+
+                            $counts['alerts']++;
+                        }
+                    }
+                });
+
+            /*
+            |--------------------------------------------------------------------------
+            | Unassigned backlog
+            |--------------------------------------------------------------------------
+            */
+
+            foreach ($unassigned as $stage => $total) {
+                foreach ($watchers as $watcher) {
+                    $key = "pct:unassigned:{$stage}";
+
+                    if ($total === 0) {
+                        continue;
+                    }
+
+                    $notification = $this->push(
+                        user: $watcher,
+
+                        dedupeKey: $key,
+
+                        category: $this->categoryFor($stage),
+
+                        severity: AppNotification::SEVERITY_WARNING,
+
+                        title: $total . ' unassigned '
+                            . \Illuminate\Support\Str::plural('case', $total)
+                            . ' breaching ' . $this->stageLabel($stage),
+
+                        message: 'These cases have no system account assigned, so no'
+                            . ' individual officer has been alerted.',
+
+                        actionUrl: route('pct-process')
+                    );
+
+                    $generated[] = $notification->id;
+
+                    $counts['alerts']++;
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Clear alerts whose condition no longer holds
+            |--------------------------------------------------------------------------
+            */
+
+            $counts['cleared'] = AppNotification::query()
+                ->where('dedupe_key', 'like', 'pct:%')
+                ->whereNotIn('id', $generated ?: [0])
+                ->delete();
+
+            DB::commit();
+        } catch (\Throwable $exception) {
+            DB::rollBack();
+
+            throw $exception;
+        } finally {
+            $this->existingAlerts = null;
+        }
 
         /*
         |--------------------------------------------------------------------------

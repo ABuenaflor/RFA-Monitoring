@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ImportBatch;
 use App\Models\Rfa;
 use App\Services\DataQualityService;
+use App\Support\SpreadsheetSafe;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -54,7 +55,7 @@ class GovernanceController extends Controller
                 ]);
 
                 foreach ($findings as $finding) {
-                    fputcsv($handle, [
+                    fputcsv($handle, SpreadsheetSafe::row([
                         $finding['label'],
 
                         $finding['severity'],
@@ -72,7 +73,7 @@ class GovernanceController extends Controller
                                 $finding['samples']
                             )
                         ),
-                    ]);
+                    ]));
                 }
 
                 fclose($handle);

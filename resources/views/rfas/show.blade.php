@@ -560,11 +560,20 @@
                         <input
                             id="seado_name"
                             name="seado_name"
+                            list="seado-name-options"
                             value="{{ old('seado_name', $rfa->seado_name) }}"
                             placeholder="Name as recorded in the source data"
                             class="{{ $inputClass }}"
                             @disabled(! $canAssign)
                         >
+
+                        <datalist id="seado-name-options">
+
+                            @foreach ($seadoNames as $option)
+                                <option value="{{ $option }}"></option>
+                            @endforeach
+
+                        </datalist>
 
                     </div>
 

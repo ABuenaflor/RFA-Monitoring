@@ -85,6 +85,13 @@ class NotificationBellTest extends TestCase
 
         Cache::forget('rfa.pct_auto_scan');
 
+        // The refresh runs after the response, so this poll returns at once…
+        $this->actingAs($this->seado)
+            ->getJson(route('notifications.feed'))
+            ->assertOk()
+            ->assertJsonPath('unread', 0);
+
+        // …and the next poll shows the refreshed alerts.
         $this->actingAs($this->seado)
             ->getJson(route('notifications.feed'))
             ->assertOk()
